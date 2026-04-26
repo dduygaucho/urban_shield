@@ -1,12 +1,14 @@
-"""Incidents API — fixed contract (do not change request/response shapes)."""
+"""Incidents API - normalization, classification, and fixed incident contract."""
+from __future__ import annotations
+
 import math
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Literal
+from typing import Any, Literal, Mapping
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field
-from sqlalchemy import select
+from pydantic import BaseModel, Field, model_validator
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -14,18 +16,92 @@ from models import Incident
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 
-IncidentCategory = Literal["crime", "harassment", "intoxication", "suspicious", "violence"]
+IncidentType = Literal["crime", "harassment", "intoxication", "suspicious", "violence"]
+DurationClass = Literal["short_term", "long_term"]
+
+DEFAULT_SOURCE = "user_report"
+DEFAULT_DURATION_CLASS: DurationClass = "short_term"
+DESCRIPTION_FALLBACK = "Reported from UrbanShield"
+
+TYPE_KEYWORDS: dict[IncidentType, tuple[str, ...]] = {
+    "crime": ("crime", "robbery", "theft", "stolen", "break-in", "burglary"),
+    "harassment": ("harassment", "harassed", "abuse", "threat", "catcall"),
+    "intoxication": ("intoxication", "intoxicated", "drunk", "alcohol", "drug"),
+    "suspicious": ("suspicious", "loitering", "unsafe", "hazard", "concern"),
+    "violence": ("violence", "violent", "fight", "assault", "attack", "weapon"),
+}
+
+DURATION_KEYWORDS: dict[DurationClass, tuple[str, ...]] = {
+    "long_term": (
+        "ongoing",
+        "recurring",
+        "repeated",
+        "daily",
+        "weekly",
+        "weeks",
+        "months",
+        "construction",
+        "roadworks",
+        "closure",
+        "flooding",
+        "outage",
+    ),
+    "short_term": (
+        "now",
+        "today",
+        "tonight",
+        "active",
+        "currently",
+        "just",
+        "fight",
+        "attack",
+        "robbery",
+        "drunk",
+        "suspicious",
+    ),
+}
+
+LEGACY_TO_CANONICAL_COLUMNS = {
+    "source": ("VARCHAR(64)", "'user_report'"),
+    "type": ("VARCHAR(32)", "category"),
+    "timestamp": ("DATETIME", "created_at"),
+    "duration_class": ("VARCHAR(16)", "'short_term'"),
+    "confidence": ("FLOAT", "NULL"),
+}
 
 
 class IncidentCreate(BaseModel):
-    category: IncidentCategory
-    description: str = Field(..., min_length=1)
+    source: str | None = None
+    type: IncidentType | None = None
+    timestamp: datetime | None = None
+    duration_class: DurationClass | None = None
+    confidence: float | None = Field(default=None, ge=0, le=1)
+
+    # Existing map UI still sends category/description.
+    category: IncidentType | None = None
+    description: str | None = None
     lat: float
     lng: float
+
+    @model_validator(mode="after")
+    def validate_incident_type(self) -> "IncidentCreate":
+        if not self.type and not self.category:
+            inferred = classify_incident_type(self.description or "")
+            if not inferred:
+                raise ValueError("Either type or category is required")
+            self.type = inferred
+        return self
 
 
 class IncidentOut(BaseModel):
     id: str
+    source: str
+    type: str
+    timestamp: datetime
+    duration_class: DurationClass
+    confidence: float | None = None
+
+    # Compatibility fields for current map UI consumers.
     category: str
     description: str
     lat: float
@@ -33,6 +109,116 @@ class IncidentOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+def classify_incident_type(text_value: str) -> IncidentType | None:
+    text_lower = text_value.lower()
+    for incident_type, keywords in TYPE_KEYWORDS.items():
+        if any(keyword in text_lower for keyword in keywords):
+            return incident_type
+    return None
+
+
+def classify_duration(text_value: str) -> DurationClass:
+    text_lower = text_value.lower()
+    for duration_class, keywords in DURATION_KEYWORDS.items():
+        if any(keyword in text_lower for keyword in keywords):
+            return duration_class
+    return DEFAULT_DURATION_CLASS
+
+
+def _coerce_datetime(value: Any) -> datetime:
+    if value is None:
+        return datetime.now(timezone.utc)
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, (int, float)):
+        return datetime.fromtimestamp(value, tz=timezone.utc)
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return datetime.now(timezone.utc)
+        if raw.endswith("Z"):
+            raw = f"{raw[:-1]}+00:00"
+        parsed = datetime.fromisoformat(raw)
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    raise ValueError("timestamp must be an ISO datetime, epoch value, or datetime object")
+
+
+def _first_present(payload: Mapping[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = payload.get(key)
+        if value is not None and value != "":
+            return value
+    return None
+
+
+def normalize_incident_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Normalize connector/API input into the canonical incident shape."""
+    description = str(_first_present(payload, "description", "text", "title", "summary") or "").strip()
+    incident_type = _first_present(payload, "type", "category", "incident_type")
+    if not incident_type:
+        incident_type = classify_incident_type(description)
+    if incident_type not in TYPE_KEYWORDS:
+        raise ValueError("type must be one of: crime, harassment, intoxication, suspicious, violence")
+
+    lat = _first_present(payload, "lat", "latitude")
+    lng = _first_present(payload, "lng", "lon", "longitude")
+    if lat is None or lng is None:
+        raise ValueError("lat and lng are required")
+
+    duration_class = _first_present(payload, "duration_class", "duration")
+    if duration_class not in DURATION_KEYWORDS:
+        duration_class = classify_duration(description)
+
+    source = str(_first_present(payload, "source", "provider") or DEFAULT_SOURCE).strip() or DEFAULT_SOURCE
+    timestamp = _coerce_datetime(_first_present(payload, "timestamp", "created_at", "time"))
+    confidence = _first_present(payload, "confidence", "score")
+    confidence_value = None if confidence is None else float(confidence)
+    if confidence_value is not None and not 0 <= confidence_value <= 1:
+        raise ValueError("confidence must be between 0 and 1")
+
+    canonical = {
+        "source": source,
+        "type": incident_type,
+        "timestamp": timestamp,
+        "lat": float(lat),
+        "lng": float(lng),
+        "duration_class": duration_class,
+        "confidence": confidence_value,
+    }
+    validate_canonical_incident(canonical)
+    return canonical
+
+
+def validate_canonical_incident(incident: Mapping[str, Any]) -> None:
+    required = ("source", "type", "timestamp", "lat", "lng", "duration_class")
+    missing = [field for field in required if incident.get(field) is None or incident.get(field) == ""]
+    if missing:
+        raise ValueError(f"Missing required incident fields: {', '.join(missing)}")
+    if incident["type"] not in TYPE_KEYWORDS:
+        raise ValueError("Invalid incident type")
+    if incident["duration_class"] not in DURATION_KEYWORDS:
+        raise ValueError("Invalid duration_class")
+    lat = float(incident["lat"])
+    lng = float(incident["lng"])
+    if not -90 <= lat <= 90:
+        raise ValueError("lat must be between -90 and 90")
+    if not -180 <= lng <= 180:
+        raise ValueError("lng must be between -180 and 180")
+
+
+def _ensure_incident_columns(db: Session) -> None:
+    """Add canonical columns for local SQLite DBs created before this contract."""
+    if db.bind is None or db.bind.dialect.name != "sqlite":
+        return
+    columns = {row[1] for row in db.execute(text("PRAGMA table_info(incidents)")).all()}
+    for column, (column_type, fallback_sql) in LEGACY_TO_CANONICAL_COLUMNS.items():
+        if column in columns:
+            continue
+        db.execute(text(f"ALTER TABLE incidents ADD COLUMN {column} {column_type}"))
+        db.execute(text(f"UPDATE incidents SET {column} = {fallback_sql} WHERE {column} IS NULL"))
+    db.commit()
 
 
 def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -46,14 +232,23 @@ def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 @router.post("", response_model=IncidentOut)
 def create_incident(payload: IncidentCreate, db: Session = Depends(get_db)):
-    now = datetime.now(timezone.utc)
+    _ensure_incident_columns(db)
+    raw = payload.model_dump()
+    raw["type"] = raw.get("type") or raw.get("category")
+    raw["description"] = (raw.get("description") or DESCRIPTION_FALLBACK).strip()
+    canonical = normalize_incident_payload(raw)
     row = Incident(
         id=str(uuid.uuid4()),
-        category=payload.category,
-        description=payload.description,
-        lat=payload.lat,
-        lng=payload.lng,
-        created_at=now,
+        source=canonical["source"],
+        type=canonical["type"],
+        timestamp=canonical["timestamp"],
+        duration_class=canonical["duration_class"],
+        confidence=canonical["confidence"],
+        category=canonical["type"],
+        description=raw["description"],
+        lat=canonical["lat"],
+        lng=canonical["lng"],
+        created_at=canonical["timestamp"],
     )
     db.add(row)
     db.commit()
@@ -69,8 +264,9 @@ def list_incidents(
     hours: float = Query(..., gt=0, description="Time window in hours"),
     db: Session = Depends(get_db),
 ):
+    _ensure_incident_columns(db)
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
-    stmt = select(Incident).where(Incident.created_at >= cutoff).order_by(Incident.created_at.desc())
+    stmt = select(Incident).where(Incident.timestamp >= cutoff).order_by(Incident.timestamp.desc())
     rows = list(db.scalars(stmt).all())
     out: list[Incident] = []
     for row in rows:

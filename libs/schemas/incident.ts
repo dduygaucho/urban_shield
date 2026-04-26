@@ -12,15 +12,36 @@ export const INCIDENT_CATEGORIES = [
 ] as const;
 
 export type IncidentCategory = (typeof INCIDENT_CATEGORIES)[number];
+export type IncidentType = IncidentCategory;
+
+export const DURATION_CLASSES = ["short_term", "long_term"] as const;
+export type DurationClass = (typeof DURATION_CLASSES)[number];
+
+export type CanonicalIncidentRecord = {
+  id: string;
+  source: string;
+  type: IncidentType;
+  timestamp: string;
+  lat: number;
+  lng: number;
+  duration_class: DurationClass;
+  confidence?: number | null;
+};
 
 export type IncidentCreatePayload = {
-  category: IncidentCategory;
-  description: string;
+  source?: string;
+  type?: IncidentType;
+  timestamp?: string;
+  duration_class?: DurationClass;
+  confidence?: number | null;
+  category?: IncidentCategory;
+  description?: string;
   lat: number;
   lng: number;
 };
 
-export type IncidentRecord = {
+export type IncidentRecord = Partial<CanonicalIncidentRecord> & {
+  // Compatibility fields retained for the existing map UI.
   id: string;
   category: string;
   description: string;
