@@ -1,0 +1,35 @@
+# Secrets — never commit real keys (use *.example templates)
+.env
+.env.local
+.env.*.local
+apps/web/.env
+apps/web/.env.local
+services/api/.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+.venv/
+venv/
+
+# Node / Next.js
+node_modules/
+apps/web/node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# SQLite / local DB
+*.db
+services/api/*.db
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Logs
+*.log

@@ -1,0 +1,17 @@
+# Reproducible Conda environment for UrbanShield (backend + optional scripts).
+# Create/update on this machine:
+#   module load Anaconda3
+#   conda env create -f environment.yml   # first time
+#   conda env update -f environment.yml   # after dependency changes
+#   conda activate urban_shield
+#
+# Collaborators: clone repo, run the same commands (use your own env name/path if needed).
+
+name: urban_shield
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - -r services/api/requirements.txt
