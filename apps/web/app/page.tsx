@@ -20,10 +20,10 @@ export default function HomePage() {
           Open map
         </Link>
         <Link
-          href="/report"
+          href="/map"
           className="rounded-lg border border-slate-300 bg-white px-4 py-3 text-center font-medium text-slate-900 hover:bg-slate-50"
         >
-          Report an incident
+          Report (opens map)
         </Link>
       </nav>
       <p className="text-xs text-slate-500">

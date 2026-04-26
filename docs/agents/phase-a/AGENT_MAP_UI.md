@@ -15,7 +15,8 @@ apps/web/app/map/**
 That means only files under `apps/web/app/map/`, for example:
 
 - `apps/web/app/map/page.tsx`
-- `apps/web/app/map/mapColors.ts`
+- `apps/web/app/map/mapColors.ts`, `region.ts`
+- `ReportBottomSheet.tsx`, `CategorySelector.tsx`, `GeocoderSearch.tsx`, `Toast.tsx` (map-first reporting UX)
 
 ---
 

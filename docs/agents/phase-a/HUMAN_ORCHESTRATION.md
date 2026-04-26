@@ -46,17 +46,44 @@ Save the file. **Do not commit** `.env.local`.
 
 ## Step 3 — prove the app runs (you only)
 
+From the **repository root** (or `apps/web`):
+
 ```bash
 cd apps/web
 npm run dev
 ```
 
-Open a browser:
+Wait until the terminal shows **“Ready”** and a local URL (usually port **3000**). Leave this terminal open; **`Ctrl+C`** stops the server.
 
-- `http://localhost:3000` — home should load  
-- `http://localhost:3000/map` — map route should load  
+### Open in a browser
 
-If `/map` is blank or errors about Mapbox, fix **token** and **restart** `npm run dev` before blaming agents.
+| URL | What you should see |
+|-----|----------------------|
+| `http://localhost:3000` | Home page with links |
+| `http://localhost:3000/map` | Fullscreen map (Melbourne / Geelong region); **➕ Report** opens a bottom sheet. Mapbox tiles if `NEXT_PUBLIC_MAPBOX_TOKEN` is set (`pk.*` only). |
+
+**Quick check (optional, same machine as dev server):**
+
+```bash
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3000/
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:3000/map
+```
+
+You want **`200`** for both.
+
+### If Next.js runs on a remote server (SSH)
+
+Your browser is on your **laptop**, but `npm run dev` is on the **cluster login node**: open an SSH tunnel from the laptop, then use `localhost` in the browser.
+
+**On your laptop** (replace `USER@HOST` with your SSH target):
+
+```bash
+ssh -L 3000:127.0.0.1:3000 USER@HOST
+```
+
+Keep that SSH session connected. Then on the laptop open `http://localhost:3000` and `http://localhost:3000/map`.
+
+If `/map` is blank or errors about Mapbox, fix **token** in `apps/web/.env.local` and **restart** `npm run dev` before blaming agents.
 
 ---
 

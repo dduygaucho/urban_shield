@@ -20,7 +20,8 @@ Two agents may run **in parallel** only if their **allowed path lists are disjoi
 | `apps/web/app/page.tsx` | Yes (Agent INTEGRATION) | [phase-a/AGENT_INTEGRATION_UI.md](./phase-a/AGENT_INTEGRATION_UI.md) |
 | `apps/web/lib/api.ts` | Yes (Agent INTEGRATION) | [phase-a/AGENT_INTEGRATION_UI.md](./phase-a/AGENT_INTEGRATION_UI.md) |
 | `apps/web/app/layout.tsx`, `globals.css`, `package.json`, `next.config.*`, `tailwind.*`, `tsconfig.json` | **No parallel agent** — human or one serial task | [phase-a/HUMAN_ORCHESTRATION.md](./phase-a/HUMAN_ORCHESTRATION.md) |
-| `apps/web/app/report/**`, `services/api/**`, `libs/schemas/**` | **Not Phase A** — do not assign | [FEATURE_REGISTRY.md](../../FEATURE_REGISTRY.md) |
+| `apps/web/app/report/**` | **Person 3 only** (redirect/help; reporting UX lives on `/map`) | [FEATURE_REGISTRY.md](../../FEATURE_REGISTRY.md) |
+| `services/api/**`, `libs/schemas/**` | **Not Phase A** — do not assign | [FEATURE_REGISTRY.md](../../FEATURE_REGISTRY.md) |
 
 ## How to use Cursor (practical)
 

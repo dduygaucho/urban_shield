@@ -1,11 +1,38 @@
-# Reproducible Conda environment for UrbanShield (backend + optional scripts).
-# Create/update on this machine:
+# UrbanShield — Conda env for the FastAPI backend (+ optional Python scripts).
+#
+# =============================================================================
+# Your server (module + base, then activate this env)
+# =============================================================================
+#
 #   module load Anaconda3
-#   conda env create -f environment.yml   # first time
-#   conda env update -f environment.yml   # after dependency changes
+#   source activate          # base env on this cluster
+#   conda activate /home/s224714149/.conda/envs/urban_shield
+#
+# (You can also use `conda activate urban_shield` if that name resolves to the
+# same path on your machine.)
+#
+# =============================================================================
+# First-time install into THIS exact path (reproducible for you)
+# =============================================================================
+#
+# From the **repository root** (so `services/api/requirements.txt` resolves):
+#
+#   module load Anaconda3
+#   source activate
+#   conda env create -f environment.yml -p /home/s224714149/.conda/envs/urban_shield
+#
+# If the env already exists and you only need to refresh deps:
+#
+#   conda env update -f environment.yml -p /home/s224714149/.conda/envs/urban_shield --prune
+#
+# =============================================================================
+# Collaborators (portable: env name only, default ~/.conda/envs/<name>)
+# =============================================================================
+#
+#   conda env create -f environment.yml    # creates env named urban_shield
 #   conda activate urban_shield
 #
-# Collaborators: clone repo, run the same commands (use your own env name/path if needed).
+# Pip packages always come from: services/api/requirements.txt
 
 name: urban_shield
 channels:

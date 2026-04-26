@@ -1,28 +1,55 @@
 "use client";
 
 /**
- * Map view (Person 2 — map UI).
- * Fetches incidents via integration layer; renders Mapbox GL markers.
+ * Map-first reporting: fullscreen Mapbox + FAB + bottom sheet.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import mapboxgl from "mapbox-gl";
-import { getIncidents } from "@/lib/api";
-import type { IncidentRecord } from "@schemas/incident";
+import { createIncident, getIncidents } from "@/lib/api";
+import type { IncidentCategory, IncidentRecord } from "@schemas/incident";
 import { colorForCategory } from "./mapColors";
+import {
+  CENTER_GEELONG,
+  DEFAULT_CENTER_MELBOURNE,
+  REGION_MAX_BOUNDS,
+  regionCenterOrDefault,
+} from "./region";
+import { ReportBottomSheet, type LocationMode } from "./ReportBottomSheet";
+import { Toast } from "./Toast";
 
-const DEFAULT_CENTER: [number, number] = [-74.006, 40.7128];
+function defaultCenterFromEnv(): [number, number] {
+  const v = process.env.NEXT_PUBLIC_MAP_DEFAULT?.toLowerCase();
+  return v === "geelong" ? CENTER_GEELONG : DEFAULT_CENTER_MELBOURNE;
+}
+
 const FETCH_RADIUS_M = 15_000;
 const FETCH_HOURS = 168;
+
+const DESCRIPTION_FALLBACK = "Reported from UrbanShield map";
 
 export default function MapPage() {
   const mapEl = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
-  const [center, setCenter] = useState<[number, number] | null>(null);
+
+  const [initialCenter, setInitialCenter] = useState<[number, number] | null>(null);
   const [mapReady, setMapReady] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [configError, setConfigError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [incidents, setIncidents] = useState<IncidentRecord[]>([]);
+
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [changeLocationOpen, setChangeLocationOpen] = useState(false);
+  const [locationMode, setLocationMode] = useState<LocationMode>("current");
+  const [pickedLabel, setPickedLabel] = useState<string | null>(null);
+  const [reportingLngLat, setReportingLngLat] = useState<{ lng: number; lat: number } | null>(null);
+  const [category, setCategory] = useState<IncidentCategory>("suspicious");
+  const [description, setDescription] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<{ message: string; variant: "success" | "error" } | null>(null);
+
+  const token = useMemo(() => process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? "", []);
 
   const clearMarkers = () => {
     markersRef.current.forEach((m) => m.remove());
@@ -30,7 +57,7 @@ export default function MapPage() {
   };
 
   const loadIncidents = useCallback(async (lat: number, lng: number) => {
-    setError(null);
+    setLoadError(null);
     try {
       const data = await getIncidents({
         lat,
@@ -41,29 +68,37 @@ export default function MapPage() {
       setIncidents(data);
     } catch (e) {
       setIncidents([]);
-      setError(e instanceof Error ? e.message : "Failed to load incidents");
+      setLoadError(e instanceof Error ? e.message : "Failed to load incidents");
     }
   }, []);
 
   useEffect(() => {
+    const fallback = defaultCenterFromEnv();
     if (!navigator.geolocation) {
-      setCenter(DEFAULT_CENTER);
+      setInitialCenter(fallback);
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setCenter([pos.coords.longitude, pos.coords.latitude]);
+        const lng = pos.coords.longitude;
+        const lat = pos.coords.latitude;
+        setInitialCenter(regionCenterOrDefault(lng, lat, fallback));
       },
-      () => setCenter(DEFAULT_CENTER),
+      () => setInitialCenter(fallback),
       { enableHighAccuracy: true, timeout: 10_000 }
     );
   }, []);
 
   useEffect(() => {
-    if (!center || !mapEl.current) return;
-    const token = process.env.NEXT_PUBLIC_MAPBOX_TOKEN;
+    if (!initialCenter || !mapEl.current) return;
     if (!token) {
-      setError("Missing NEXT_PUBLIC_MAPBOX_TOKEN. Copy apps/web/.env.example to .env.local.");
+      setConfigError("Missing NEXT_PUBLIC_MAPBOX_TOKEN. Copy apps/web/.env.example to .env.local.");
+      return;
+    }
+    if (token.startsWith("sk.")) {
+      setConfigError(
+        "Use a public Mapbox token (pk.*) in NEXT_PUBLIC_MAPBOX_TOKEN, not a secret token (sk.*)."
+      );
       return;
     }
     mapboxgl.accessToken = token;
@@ -74,14 +109,16 @@ export default function MapPage() {
     const map = new mapboxgl.Map({
       container: mapEl.current,
       style: "mapbox://styles/mapbox/streets-v12",
-      center,
-      zoom: 13,
+      center: initialCenter,
+      zoom: 11,
+      minZoom: 9,
+      maxZoom: 19,
+      maxBounds: REGION_MAX_BOUNDS,
     });
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
     mapRef.current = map;
 
     map.once("load", () => {
-      new mapboxgl.Marker({ color: "#0f172a" }).setLngLat(center).addTo(map);
       setMapReady(true);
     });
 
@@ -90,12 +127,60 @@ export default function MapPage() {
       map.remove();
       mapRef.current = null;
     };
-  }, [center]);
+  }, [initialCenter, token]);
 
   useEffect(() => {
-    if (!center) return;
-    void loadIncidents(center[1], center[0]);
-  }, [center, loadIncidents]);
+    if (!initialCenter) return;
+    void loadIncidents(initialCenter[1], initialCenter[0]);
+  }, [initialCenter, loadIncidents]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady || !sheetOpen || locationMode !== "pin") return;
+
+    const sync = () => {
+      const c = map.getCenter();
+      const pair = regionCenterOrDefault(c.lng, c.lat, defaultCenterFromEnv());
+      setReportingLngLat({ lng: pair[0], lat: pair[1] });
+    };
+
+    map.on("moveend", sync);
+    sync();
+    return () => {
+      map.off("moveend", sync);
+    };
+  }, [mapReady, sheetOpen, locationMode]);
+
+  useEffect(() => {
+    if (!sheetOpen) return;
+    const fallback = defaultCenterFromEnv();
+    if (!navigator.geolocation) {
+      const c = mapRef.current?.getCenter();
+      if (c) {
+        const pair = regionCenterOrDefault(c.lng, c.lat, fallback);
+        setReportingLngLat({ lng: pair[0], lat: pair[1] });
+      }
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const pair = regionCenterOrDefault(pos.coords.longitude, pos.coords.latitude, fallback);
+        setReportingLngLat({ lng: pair[0], lat: pair[1] });
+        setPickedLabel(null);
+        setLocationMode("current");
+        mapRef.current?.flyTo({ center: pair, essential: true, duration: 900 });
+      },
+      () => {
+        const c = mapRef.current?.getCenter();
+        if (c) {
+          const pair = regionCenterOrDefault(c.lng, c.lat, fallback);
+          setReportingLngLat({ lng: pair[0], lat: pair[1] });
+        }
+        setPickedLabel(null);
+      },
+      { enableHighAccuracy: true, timeout: 12_000 }
+    );
+  }, [sheetOpen]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -117,25 +202,192 @@ export default function MapPage() {
     }
   }, [incidents, mapReady]);
 
+  const locationSummary = useMemo(() => {
+    if (locationMode === "pin") {
+      return "📌 Reporting where the pin is — move the map to adjust";
+    }
+    if (locationMode === "search") {
+      return "🔍 Search for a place, then choose a result";
+    }
+    if (pickedLabel) {
+      return `📍 ${pickedLabel}`;
+    }
+    return "📍 Reporting at your current location";
+  }, [locationMode, pickedLabel]);
+
+  const handleGeocoderPick = useCallback((lng: number, lat: number) => {
+    const fallback = defaultCenterFromEnv();
+    const pair = regionCenterOrDefault(lng, lat, fallback);
+    setReportingLngLat({ lng: pair[0], lat: pair[1] });
+    setLocationMode("current");
+    setPickedLabel("Selected place");
+    mapRef.current?.flyTo({ center: pair, essential: true, duration: 900 });
+  }, []);
+
+  const refreshReportingFromGps = useCallback(() => {
+    const fallback = defaultCenterFromEnv();
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const pair = regionCenterOrDefault(pos.coords.longitude, pos.coords.latitude, fallback);
+        setReportingLngLat({ lng: pair[0], lat: pair[1] });
+        setPickedLabel(null);
+        mapRef.current?.flyTo({ center: pair, essential: true, duration: 900 });
+      },
+      () => {},
+      { enableHighAccuracy: true, timeout: 12_000 }
+    );
+  }, []);
+
+  const handleRefreshIncidents = useCallback(() => {
+    const map = mapRef.current;
+    const c = map?.getCenter();
+    if (c) void loadIncidents(c.lat, c.lng);
+    else if (initialCenter) void loadIncidents(initialCenter[1], initialCenter[0]);
+  }, [initialCenter, loadIncidents]);
+
+  const handleSubmitReport = useCallback(async () => {
+    if (!reportingLngLat) return;
+    const desc = description.trim() || DESCRIPTION_FALLBACK;
+    const tempId = `temp-${Date.now()}`;
+    const optimistic: IncidentRecord = {
+      id: tempId,
+      category,
+      description: desc,
+      lat: reportingLngLat.lat,
+      lng: reportingLngLat.lng,
+      created_at: new Date().toISOString(),
+    };
+    setIncidents((prev) => [optimistic, ...prev]);
+    setSubmitting(true);
+    try {
+      const rec = await createIncident({
+        category,
+        description: desc,
+        lat: reportingLngLat.lat,
+        lng: reportingLngLat.lng,
+      });
+      setIncidents((prev) => prev.map((i) => (i.id === tempId ? rec : i)));
+      setToast({ message: "Incident reported", variant: "success" });
+      setSheetOpen(false);
+      setChangeLocationOpen(false);
+      setDescription("");
+      setLocationMode("current");
+      setPickedLabel(null);
+      handleRefreshIncidents();
+    } catch (e) {
+      setIncidents((prev) => prev.filter((i) => i.id !== tempId));
+      setToast({
+        message: e instanceof Error ? e.message : "Could not report incident",
+        variant: "error",
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }, [reportingLngLat, description, category, handleRefreshIncidents]);
+
+  const openReportSheet = () => {
+    setChangeLocationOpen(false);
+    setLocationMode("current");
+    setPickedLabel(null);
+    setSheetOpen(true);
+  };
+
+  const bannerError = configError ?? loadError;
+
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3">
-        <Link href="/" className="text-sm font-medium text-slate-700 hover:text-slate-900">
-          ← Home
+    <div className="fixed inset-0 z-0 bg-slate-900">
+      <div ref={mapEl} className="absolute inset-0" />
+
+      {sheetOpen && locationMode === "pin" && (
+        <div
+          className="pointer-events-none absolute left-1/2 top-[42%] z-20 -translate-x-1/2 -translate-y-1/2"
+          aria-hidden
+        >
+          <div className="flex flex-col items-center drop-shadow-lg">
+            <div className="h-0 w-0 border-x-[10px] border-x-transparent border-b-[14px] border-b-red-500" />
+            <div className="-mt-0.5 h-4 w-4 rounded-full border-2 border-white bg-red-500 shadow-md" />
+          </div>
+        </div>
+      )}
+
+      <div className="pointer-events-none absolute left-0 top-0 z-30 flex flex-col gap-2 p-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+        <Link
+          href="/"
+          className="pointer-events-auto rounded-full bg-white/95 px-3 py-2 text-sm font-semibold text-slate-800 shadow-md ring-1 ring-slate-200/80 backdrop-blur-sm transition hover:bg-white"
+        >
+          Home
         </Link>
-        <h1 className="text-lg font-semibold text-slate-900">Map</h1>
         <button
           type="button"
-          className="text-sm font-medium text-blue-600 hover:text-blue-800"
-          onClick={() => center && void loadIncidents(center[1], center[0])}
+          onClick={handleRefreshIncidents}
+          className="pointer-events-auto rounded-full bg-white/95 px-3 py-2 text-sm font-semibold text-blue-700 shadow-md ring-1 ring-slate-200/80 backdrop-blur-sm transition hover:bg-white"
         >
           Refresh
         </button>
-      </header>
-      {error && (
-        <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-900">{error}</div>
+      </div>
+
+      {bannerError && (
+        <div className="absolute left-3 right-3 top-16 z-30 rounded-xl bg-amber-50 px-3 py-2 text-center text-xs font-medium text-amber-950 shadow-md ring-1 ring-amber-200">
+          {bannerError}
+        </div>
       )}
-      <div ref={mapEl} className="min-h-0 flex-1 w-full" />
+
+      <button
+        type="button"
+        onClick={openReportSheet}
+        className="absolute bottom-[max(1.25rem,env(safe-area-inset-bottom))] right-4 z-30 flex h-14 min-w-[7.5rem] items-center justify-center gap-2 rounded-full bg-slate-900 px-5 text-base font-bold text-white shadow-xl shadow-slate-900/40 transition hover:bg-slate-800 active:scale-95"
+        aria-label="Report incident"
+      >
+        <span className="text-xl" aria-hidden>
+          ➕
+        </span>
+        Report
+      </button>
+
+      {token ? (
+        <ReportBottomSheet
+          open={sheetOpen}
+          onClose={() => {
+            setSheetOpen(false);
+            setChangeLocationOpen(false);
+          }}
+          locationMode={locationMode}
+          onLocationModeChange={(m) => {
+            setLocationMode(m);
+            if (m === "pin") {
+              setPickedLabel(null);
+              const c = mapRef.current?.getCenter();
+              const fb = defaultCenterFromEnv();
+              if (c) {
+                const pair = regionCenterOrDefault(c.lng, c.lat, fb);
+                setReportingLngLat({ lng: pair[0], lat: pair[1] });
+              }
+            }
+            if (m === "search") {
+              setPickedLabel(null);
+            }
+          }}
+          locationSummary={locationSummary}
+          changeLocationOpen={changeLocationOpen}
+          onToggleChangeLocation={() => setChangeLocationOpen((v) => !v)}
+          mapboxToken={token}
+          onGeocoderPick={handleGeocoderPick}
+          category={category}
+          onCategoryChange={setCategory}
+          description={description}
+          onDescriptionChange={setDescription}
+          submitting={submitting}
+          locationReady={!!reportingLngLat}
+          onSubmit={() => void handleSubmitReport()}
+          onUseCurrentLocation={refreshReportingFromGps}
+          pinModeActive={sheetOpen && locationMode === "pin"}
+        />
+      ) : null}
+
+      {toast && (
+        <Toast message={toast.message} variant={toast.variant} onDismiss={() => setToast(null)} />
+      )}
     </div>
   );
 }

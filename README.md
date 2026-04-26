@@ -8,11 +8,13 @@ Safety navigation demo: **report incidents** and **view them on a map** (Next.js
 |------|------------------------|
 | `services/api/` | Backend (Person 1) |
 | `apps/web/app/map/` | Map UI (Person 2) |
-| `apps/web/app/report/` | Report UI (Person 3) |
+| `apps/web/app/report/` | Report redirect / help (Person 3); reporting UX lives on `/map` |
 | `apps/web/lib/`, `apps/web/app/page.tsx`, `libs/schemas/` | Integration (Person 4) |
 | `scripts/ingest_social.py` | Optional ingestion (Person 4) |
 
 See [FEATURE_REGISTRY.md](./FEATURE_REGISTRY.md) for branches and ownership detail.
+
+**Collaborator handoff (status + per-role next tasks + roadmap):** [instruction.md](./instruction.md).
 
 **Multi-agent (Cursor):** use [docs/agents/README.md](./docs/agents/README.md) — Phase A runbook: [docs/agents/phase-a/HUMAN_ORCHESTRATION.md](./docs/agents/phase-a/HUMAN_ORCHESTRATION.md).
 
@@ -71,7 +73,7 @@ Response: JSON array of:
    cp apps/web/.env.example apps/web/.env.local
    ```
 
-   Set `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_MAPBOX_TOKEN`.
+   Set `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_MAPBOX_TOKEN`. The Mapbox value must be a **public** token (`pk.…`), not a secret token (`sk.…`); see [Mapbox token docs](https://docs.mapbox.com/accounts/guides/access-tokens/).
 
 `.gitignore` excludes `.env`, `.env.local`, and `apps/web/.env*local` so keys stay off Git.
 
@@ -110,6 +112,8 @@ npm install
 npm run dev
 ```
 
+The web app depends on **`mapbox-gl`** and **`@mapbox/mapbox-gl-geocoder`** (place search in the map report sheet). Both are listed in `apps/web/package.json`.
+
 Open [http://localhost:3000](http://localhost:3000).
 
 ## Optional: Reddit ingestion
@@ -127,8 +131,11 @@ Most posts **will not** include coordinates — the script only inserts rows whe
 ## Demo flow
 
 1. Start API (`uvicorn`) and web (`npm run dev`).
-2. Open **Report**, allow geolocation, submit an incident.
-3. Open **Map**, allow geolocation, use **Refresh** — marker should appear within your search radius/time window.
+2. Open **`/map`**, allow geolocation when prompted.
+3. Tap **➕ Report** (bottom-right). In the bottom sheet pick a category (and optional details), then **Report incident**.
+4. You should see a success toast and a new marker on the map (optimistic update). **Refresh** reloads incidents from the API within the current map center and time/radius window.
+
+The **`/report`** route only redirects to the map with a short help message (reporting is map-first).
 
 ## License
 
