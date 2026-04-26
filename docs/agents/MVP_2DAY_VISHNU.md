@@ -1,0 +1,91 @@
+# Vishnu — Safety Scoring Work Packet (2-Day MVP)
+
+Primary role: Route Planning (incident-route matching + safety score/ranking).
+
+## Allowed Ownership
+
+You may modify only:
+- `apps/web/lib/safety/**`
+- `apps/web/app/map/page.tsx` (safety score rendering only, in serial merge window)
+- your own notes in this file
+
+Do not modify ingestion connectors or extraction classifiers.
+
+Backup relationship:
+- Primary owner: Vishnu
+- Backup owner: Duc (can take over any `VISHNU-*` task when needed)
+
+## Interfaces You Must Respect
+
+Input dependencies:
+- incident snapshots from Duy/Khoa
+- route candidates from Duc
+
+Output requirements:
+- numeric `safety_score`
+- rankable route list
+- `incident_refs`
+- human-readable `explanation`
+
+## Task Checklist
+
+### Day 1 (Core)
+- [ ] `VISHNU-1` Implement incident proximity matching against route geometry (`PENDING`, depends on `DUC-4`)
+- [ ] `VISHNU-2` Implement simple weighted safety scoring formula (`PENDING`)
+- [ ] `VISHNU-3` Implement route ranking and explanation fields (`PENDING`)
+- [ ] `VISHNU-4` Define scoring defaults for missing/low-confidence data (`PENDING`)
+
+### Day 2 (Integration + Demo)
+- [ ] `VISHNU-5` Integrate with real incident snapshots from data team (`PENDING`, depends on `KHOA-6` and `DUY-5`)
+- [ ] `VISHNU-6` Validate score behavior on low-risk vs high-risk test scenarios (`PENDING`)
+- [ ] `VISHNU-7` Prepare route inspection output for demo narrative (`PENDING`)
+
+## AI Planning Mode: Micro-task Split Template
+
+When any `VISHNU-*` task is too large, split into:
+- `VISHNU-<n>-A` output + files + done criteria
+- `VISHNU-<n>-B` output + files + done criteria
+- `VISHNU-<n>-C` output + files + done criteria
+
+Only split inside this file. Do not create ad hoc side documents.
+
+## Deliverables
+
+- Transparent and deterministic safety score behavior.
+- Route ranking output with clear rationale.
+- Demo-ready inspection details per route.
+
+## Blockers
+
+- [ ] None currently
+
+If blocked, add one line:
+- `BLOCKED: <task-id> | <reason> | <needed-from-who>`
+
+## Completion Log
+
+When a task is done, append one line:
+- `<task-id> DONE | <timestamp> | <evidence>`
+
+## Takeover Notes (required while task is IN_PROGRESS)
+
+For each active task, keep this one-line log updated:
+- `NEXT: <task-id> | files=<paths> | next_step=<one line> | risk=<one line>`
+
+If Duc takes over:
+- add `TAKEOVER: DUC | <task-id> | <timestamp>`
+
+## Assumptions Log (required before implementation)
+
+Record one line per assumption:
+- `ASSUMPTION: <task-id> | <assumption> | <impact-if-wrong>`
+
+## Implementation Delta Log (required if implementation differs)
+
+Record one line whenever delivered behavior differs from planned behavior:
+- `DELTA: <task-id> | planned=<...> | actual=<...> | reason=<...> | downstream=<who/what>`
+
+## Conflict Scan Log (required before DONE)
+
+Record one line per completed task:
+- `CONFLICT_SCAN: <task-id> | files=<paths> | overlap=<none|possible> | interface=<ok|risk> | action=<none|follow-up>`

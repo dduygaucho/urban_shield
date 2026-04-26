@@ -2,6 +2,8 @@
 
 **Purpose:** This file summarizes **what is already implemented** in this repo, **what is still open**, and **how each role can plan next work** without stepping on others. It complements [README.md](./README.md) (how to run) and [FEATURE_REGISTRY.md](./FEATURE_REGISTRY.md) (file ownership).
 
+**Sprint note (MVP 2-day with named collaborators):** execution now uses [docs/agents/MVP_2DAY_ORCHESTRATION.md](./docs/agents/MVP_2DAY_ORCHESTRATION.md) as the single orchestration source plus per-collaborator task files.
+
 **Last updated:** April 2026 (sync with `main` / your branch before relying on paths).
 
 ---

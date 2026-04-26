@@ -7,6 +7,7 @@ This folder is the **single place** for multi-agent workflows. Each subfolder is
 | Phase | Goal | Open |
 |-------|------|------|
 | **Phase A** | Run Next.js and see the Mapbox map | [phase-a/HUMAN_ORCHESTRATION.md](./phase-a/HUMAN_ORCHESTRATION.md) |
+| **MVP 2-Day Sprint** | Team delivery plan with 4 named collaborators and per-owner work packets | [MVP_2DAY_ORCHESTRATION.md](./MVP_2DAY_ORCHESTRATION.md) |
 
 ## Conflict-free rule (non-negotiable)
 
@@ -35,3 +36,4 @@ Two agents may run **in parallel** only if their **allowed path lists are disjoi
 - [FEATURE_REGISTRY.md](../../FEATURE_REGISTRY.md) — long-term ownership by “Person 1–4”
 - [README.md](../../README.md) — install and run commands
 - Root [MULTI_AGENT_PLAYBOOK.md](../../MULTI_AGENT_PLAYBOOK.md) — short pointer back to this folder
+- [MVP_2DAY_ORCHESTRATION.md](./MVP_2DAY_ORCHESTRATION.md) — single source of truth for Duy/Khoa/Duc/Vishnu
