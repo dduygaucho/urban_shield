@@ -33,7 +33,8 @@ export default function MapPage() {
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<mapboxgl.Marker[]>([]);
 
-  const [initialCenter, setInitialCenter] = useState<[number, number] | null>(null);
+  /** Start at env default so the map mounts immediately; GPS refines via flyTo. */
+  const [mapCenter, setMapCenter] = useState<[number, number]>(() => defaultCenterFromEnv());
   const [mapReady, setMapReady] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -75,22 +76,27 @@ export default function MapPage() {
   useEffect(() => {
     const fallback = defaultCenterFromEnv();
     if (!navigator.geolocation) {
-      setInitialCenter(fallback);
+      setMapCenter(fallback);
       return;
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const lng = pos.coords.longitude;
         const lat = pos.coords.latitude;
-        setInitialCenter(regionCenterOrDefault(lng, lat, fallback));
+        const pair = regionCenterOrDefault(lng, lat, fallback);
+        setMapCenter(pair);
+        mapRef.current?.flyTo({ center: pair, essential: true, duration: 1100 });
       },
-      () => setInitialCenter(fallback),
+      () => {
+        setMapCenter(fallback);
+      },
       { enableHighAccuracy: true, timeout: 10_000 }
     );
   }, []);
 
   useEffect(() => {
-    if (!initialCenter || !mapEl.current) return;
+    const el = mapEl.current;
+    if (!el) return;
     if (!token) {
       setConfigError("Missing NEXT_PUBLIC_MAPBOX_TOKEN. Copy apps/web/.env.example to .env.local.");
       return;
@@ -107,9 +113,9 @@ export default function MapPage() {
 
     setMapReady(false);
     const map = new mapboxgl.Map({
-      container: mapEl.current,
+      container: el,
       style: "mapbox://styles/mapbox/streets-v12",
-      center: initialCenter,
+      center: mapCenter,
       zoom: 11,
       minZoom: 9,
       maxZoom: 19,
@@ -118,7 +124,13 @@ export default function MapPage() {
     map.addControl(new mapboxgl.NavigationControl(), "top-right");
     mapRef.current = map;
 
+    map.on("error", (e) => {
+      const msg = e.error?.message ?? String(e);
+      setLoadError((prev) => (prev ? `${prev} · Map: ${msg}` : `Map: ${msg}`));
+    });
+
     map.once("load", () => {
+      map.resize();
       setMapReady(true);
     });
 
@@ -127,12 +139,11 @@ export default function MapPage() {
       map.remove();
       mapRef.current = null;
     };
-  }, [initialCenter, token]);
+  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps -- map mounts once per token; GPS uses flyTo
 
   useEffect(() => {
-    if (!initialCenter) return;
-    void loadIncidents(initialCenter[1], initialCenter[0]);
-  }, [initialCenter, loadIncidents]);
+    void loadIncidents(mapCenter[1], mapCenter[0]);
+  }, [mapCenter, loadIncidents]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -243,8 +254,8 @@ export default function MapPage() {
     const map = mapRef.current;
     const c = map?.getCenter();
     if (c) void loadIncidents(c.lat, c.lng);
-    else if (initialCenter) void loadIncidents(initialCenter[1], initialCenter[0]);
-  }, [initialCenter, loadIncidents]);
+    else void loadIncidents(mapCenter[1], mapCenter[0]);
+  }, [mapCenter, loadIncidents]);
 
   const handleSubmitReport = useCallback(async () => {
     if (!reportingLngLat) return;
@@ -297,7 +308,7 @@ export default function MapPage() {
 
   return (
     <div className="fixed inset-0 z-0 bg-slate-900">
-      <div ref={mapEl} className="absolute inset-0" />
+      <div ref={mapEl} className="map-page-map-root absolute inset-0 z-[1] min-h-0 min-w-0" />
 
       {sheetOpen && locationMode === "pin" && (
         <div
