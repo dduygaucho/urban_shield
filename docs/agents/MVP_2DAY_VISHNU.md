@@ -17,6 +17,18 @@ Primary role: Route Planning (incident-route matching + safety score/ranking).
 
 Merge order reference: Khoa -> Duy -> Duc -> Vishnu.
 
+## Hybrid Execution Priority
+
+Urgent unblocker tasks from Vishnu:
+- `VISHNU-3` is urgent because it unblocks `DUC-5` and `DUC-7`.
+
+Vishnu dependency gates:
+- `VISHNU-1` depends on `DUC-4`.
+- `VISHNU-5` depends on `DUY-5` and stable data schema from Khoa (`KHOA-6`).
+
+Can start immediately (no waiting):
+- `VISHNU-2`, `VISHNU-3`, `VISHNU-4`, `VISHNU-6`, `VISHNU-7` scaffold work.
+
 ## Allowed Ownership
 
 You may modify only:
@@ -47,7 +59,7 @@ Output requirements:
 ### Day 1 (Core)
 - [ ] `VISHNU-1` Implement incident proximity matching against route geometry (`PENDING`, depends on `DUC-4`)
 - [ ] `VISHNU-2` Implement simple weighted safety scoring formula (`PENDING`)
-- [ ] `VISHNU-3` Implement route ranking and explanation fields (`PENDING`)
+- [ ] `VISHNU-3` Implement route ranking and explanation fields (`PENDING`, urgent unblocker for Duc)
 - [ ] `VISHNU-4` Define scoring defaults for missing/low-confidence data (`PENDING`)
 
 ### Day 2 (Integration + Demo)

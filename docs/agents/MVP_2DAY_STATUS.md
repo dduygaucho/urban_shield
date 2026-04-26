@@ -21,6 +21,13 @@ Checkpoint cadence:
 
 Merge order standard: Khoa -> Duy -> Duc -> Vishnu.
 
+## Hybrid Mode Sprint Gates (urgent unblockers)
+
+- Khoa urgent gate: `KHOA-1` and `KHOA-3` -> unlocks Duy finalization (`DUY-3`, `DUY-6`)
+- Duy urgent gate: `DUY-5` -> unlocks Vishnu integration (`VISHNU-5`)
+- Duc urgent gate: `DUC-4` -> unlocks Vishnu matching (`VISHNU-1`)
+- Vishnu urgent gate: `VISHNU-3` -> unlocks Duc payload finalization (`DUC-5`, `DUC-7`)
+
 ## Task Rollup
 
 - `T0` Interface freeze: `PENDING` | Primary: Khoa | Backup: Duy
@@ -31,6 +38,14 @@ Merge order standard: Khoa -> Duy -> Duc -> Vishnu.
 - `T5` Route inspection output: `PENDING` | Primary: Vishnu | Backup: Duc
 - `T6` End-to-end demo: `PENDING` | Primary: Duc | Backup: Duy
 - `T7` Public transport stretch: `PENDING` | Primary: Duy | Backup: Khoa
+
+## Urgent Gate Status
+
+- `KHOA-1`: `PENDING`
+- `KHOA-3`: `PENDING`
+- `DUY-5`: `PENDING`
+- `DUC-4`: `PENDING`
+- `VISHNU-3`: `PENDING`
 
 ## Collaborator Snapshot
 

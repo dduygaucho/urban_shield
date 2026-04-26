@@ -19,6 +19,18 @@ Each collaborator works only on their dedicated branch:
 
 Do not commit directly to `main`.
 
+## Hybrid Delivery Model (recommended)
+
+This sprint uses a hybrid execution model:
+- **Step 1 (short prerequisite window):** 60-120 minutes for minimum interface and unblocker tasks.
+- **Step 2 (mostly independent build):** each collaborator executes their own track in parallel.
+- **Step 3 (scheduled integration windows):** resolve overlap and finalize end-to-end flow.
+
+Target split for this 2-day MVP:
+- prerequisite/gates: about 20 percent
+- independent execution: about 70 percent
+- integration/polish: about 10 percent
+
 ## 1) Baseline Validation (already present in codebase)
 
 Validated from current repository state:
@@ -119,6 +131,28 @@ Merge safety:
 - Merge order for controlled-overlap work: Khoa -> Duy -> Duc -> Vishnu.
 - If `apps/web/app/map/page.tsx` has conflicts, resolve in a dedicated integration PR, not in feature PRs.
 
+## Critical Unblocker Matrix (urgent-first tasks)
+
+These urgent tasks unlock downstream work. Each owner should prioritize these first in the prerequisite window.
+
+- **Khoa urgent unblockers**
+  - `KHOA-1` + `KHOA-3` unblock Duy core ingestion output (`DUY-3`, `DUY-6`).
+- **Duy urgent unblockers**
+  - `DUY-5` unblock Vishnu integration validation (`VISHNU-5`).
+- **Duc urgent unblockers**
+  - `DUC-4` unblock Vishnu geometry-based matching (`VISHNU-1`).
+- **Vishnu urgent unblockers**
+  - `VISHNU-3` unblock Duc route payload finalization (`DUC-5`, `DUC-7`).
+
+If an urgent task is delayed, backup owner takes over immediately using takeover protocol.
+
+### Urgent dependency scenarios (all 4 collaborators)
+
+- **Scenario A (Khoa -> Duy):** if `KHOA-1` or `KHOA-3` is late, Duy continues scaffold work (`DUY-1`, `DUY-2`, `DUY-4`, `DUY-5`) but cannot close `DUY-3`/`DUY-6`.
+- **Scenario B (Duy -> Vishnu):** if `DUY-5` is late, Vishnu proceeds with scoring logic and mock data, but delays `VISHNU-5` signoff.
+- **Scenario C (Duc -> Vishnu):** if `DUC-4` is late, Vishnu progresses `VISHNU-2/3/4` and stubs geometry matcher until contract lands.
+- **Scenario D (Vishnu -> Duc):** if `VISHNU-3` is late, Duc finalizes route generation and UI, but keeps `DUC-5`/`DUC-7` in ready-to-merge state.
+
 ### Primary and backup ownership (for seamless takeover)
 
 Every task has a primary owner and one backup owner who can take over immediately if needed.
@@ -161,37 +195,39 @@ Assumption and implementation drift protocol:
 ## 6) Parallelization and Dependencies
 
 Timezone sequencing requirement:
-- **Khoa must complete prerequisite-first tasks before Duy starts data execution tasks.**
-- Required prerequisite gate: `T0` + `T2` initial schema/classification baseline.
+- **Khoa urgent tasks must be done first to unlock Duy core data tasks.**
+- Required Duy start gate: `KHOA-1` + `KHOA-3`.
 
-Parallel from start (after `T0` is done):
-- Khoa: extraction/classification pipeline baseline.
-- Duc: route candidate generation.
-- Vishnu: scoring formula and incident-route matcher shell.
+Can start immediately (independent):
+- Khoa: `KHOA-1`, `KHOA-2`, `KHOA-3`.
+- Duc: `DUC-1`, `DUC-2`, `DUC-3`.
+- Vishnu: `VISHNU-2`, `VISHNU-3`, `VISHNU-4`.
+- Duy: `DUY-1`, `DUY-2`, `DUY-4`, `DUY-5` prework and scaffolding.
 
-Parallel after Khoa prerequisite gate is complete:
-- Duy: ingestion connector and scheduler.
-- Khoa: classification refinement and schema hardening.
-- Duc: route candidate generation.
-- Vishnu: scoring formula and incident-route matcher.
+Starts after urgent unblockers:
+- Duy production-ready core output (`DUY-3`, `DUY-6`) after `KHOA-1` + `KHOA-3`.
+- Vishnu geometry matching (`VISHNU-1`) after `DUC-4`.
+- Vishnu integration (`VISHNU-5`) after `DUY-5`.
+- Duc route payload finalization (`DUC-5`, `DUC-7`) after `VISHNU-3`.
 
 Dependencies:
-- `T1` (Duy lane) depends on Khoa prerequisite gate (`T0` + schema baseline from `T2`).
-- `T4` depends on `T1` + `T2` + `T3`.
-- `T6` depends on `T4` + `T5`.
+- `T1` finalization depends on Khoa urgent gate (`KHOA-1` + `KHOA-3`).
+- `T4` depends on `T1` + `T2` + `T3` at integration checkpoint.
+- `T5` depends on `T4` at integration checkpoint.
+- `T6` depends on `T5`.
 - `T7` depends on `T6` (core stable first).
 
 ```mermaid
 flowchart TD
-  t0[InterfaceFreezeKhoaFirst] --> t2[ExtractionClassificationBaseline]
-  t2 --> t1[IngestionReadyDuy]
-  t0 --> t3[RouteAlternativesReady]
-  t1 --> t4[SafetyScoringIntegrated]
-  t2 --> t4
-  t3 --> t4
-  t4 --> t5[RouteIncidentInspectionReady]
-  t5 --> t6[EndToEndDemoReady]
-  t6 --> t7[TransportStretchOptional]
+  khoaGate[KhoaUrgentGateKHOA1KHOA3] --> duyCore[DuyCoreOutputReady]
+  ducContract[DucUrgentContractDUC4] --> vishnuMatch[VishnuMatchingReady]
+  duyFixture[DuyUrgentFixtureDUY5] --> vishnuIntegrate[VishnuIntegrationReady]
+  vishnuContract[VishnuUrgentContractVISHNU3] --> ducFinalize[DucPayloadFinalize]
+  duyCore --> e2e[EndToEndDemoReady]
+  vishnuMatch --> e2e
+  vishnuIntegrate --> e2e
+  ducFinalize --> e2e
+  e2e --> stretch[TransportStretchOptional]
 ```
 
 ## 7) 2-Day Execution Phases
@@ -200,14 +236,20 @@ flowchart TD
 - Freeze interfaces.
 - Confirm ownership boundaries.
 - Prepare deterministic test fixtures.
-- Khoa publishes prerequisite schema baseline for data lane kickoff.
+- Complete urgent unblockers kickoff:
+  - Khoa starts `KHOA-1` and `KHOA-3`.
+  - Duc starts `DUC-4`.
+  - Duy starts `DUY-5`.
+  - Vishnu starts `VISHNU-3`.
 
 Output: signed interface contract + task kickoff.
 
 ### Phase 1 — Parallel Core Build (Day 1)
-- Khoa starts and completes prerequisite data tasks first.
-- Duy executes connector/scheduler tasks after Khoa gate is marked done.
-- Duc/Vishnu build route-generation-scoring path.
+- After first urgent unblockers, all four run mostly independent tracks.
+- Khoa continues classification hardening and compatibility.
+- Duy continues ingestion execution and validation.
+- Duc continues route generation and route demo quality.
+- Vishnu continues scoring and route inspection behavior.
 
 Output: independently testable modules.
 

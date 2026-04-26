@@ -17,6 +17,18 @@ Primary role: Data Crawling (Normalization + classification + schema guardrails)
 
 Merge order reference: Khoa -> Duy -> Duc -> Vishnu.
 
+## Hybrid Execution Priority
+
+Urgent unblocker tasks from Khoa:
+- `KHOA-1` and `KHOA-3` are urgent because Duy cannot finalize `DUY-3` and `DUY-6` without them.
+
+Can start immediately (no waiting):
+- `KHOA-1`, `KHOA-2`, `KHOA-3`, `KHOA-4`.
+
+Downstream unlocked by Khoa:
+- Duy core data finalization (`DUY-3`, `DUY-6`).
+- Routing integration confidence for Vishnu (`VISHNU-5`) through stable schema.
+
 ## Allowed Ownership
 
 You may modify only:
@@ -47,9 +59,9 @@ Required incident fields:
 ## Task Checklist
 
 ### Day 1 (Core)
-- [ ] `KHOA-1` Implement normalization from raw connector payload to canonical incident object (`PENDING`, prerequisite-first)
+- [ ] `KHOA-1` Implement normalization from raw connector payload to canonical incident object (`PENDING`, urgent unblocker for Duy)
 - [ ] `KHOA-2` Implement keyword-based duration classification proxy (`PENDING`, prerequisite-first)
-- [ ] `KHOA-3` Add schema validation checks before store write (`PENDING`, prerequisite-first)
+- [ ] `KHOA-3` Add schema validation checks before store write (`PENDING`, urgent unblocker for Duy)
 - [ ] `KHOA-4` Prepare classification dictionary and fallback behavior (`PENDING`, can run parallel with `DUY-1`, `DUY-2`)
 
 ### Day 2 (Integration + Demo)

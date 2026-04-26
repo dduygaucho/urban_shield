@@ -17,6 +17,17 @@ Primary role: Route Planning (route alternatives + route contract).
 
 Merge order reference: Khoa -> Duy -> Duc -> Vishnu.
 
+## Hybrid Execution Priority
+
+Urgent unblocker tasks from Duc:
+- `DUC-4` is urgent because it unblocks `VISHNU-1`.
+
+Duc dependency on Vishnu:
+- `DUC-5` and `DUC-7` depend on `VISHNU-3` scoring/ranking contract.
+
+Can start immediately (no waiting):
+- `DUC-1`, `DUC-2`, `DUC-3`, `DUC-4`, `DUC-6`.
+
 ## Allowed Ownership
 
 You may modify only:
@@ -47,12 +58,12 @@ Generate 2-3 alternatives per request.
 - [ ] `DUC-1` Implement route request and base response contract (`PENDING`)
 - [ ] `DUC-2` Build route candidate generator returning 2-3 alternatives (`PENDING`)
 - [ ] `DUC-3` Add deterministic behavior for demo origin/destination fixtures (`PENDING`)
-- [ ] `DUC-4` Document route geometry abstraction for Vishnu integration (`PENDING`, prerequisite for `VISHNU-1`)
+- [ ] `DUC-4` Document route geometry abstraction for Vishnu integration (`PENDING`, urgent unblocker for `VISHNU-1`)
 
 ### Day 2 (Integration + Demo)
-- [ ] `DUC-5` Integrate incident references into route payload (`PENDING`, depends on `VISHNU-1`)
+- [ ] `DUC-5` Integrate incident references into route payload (`PENDING`, depends on `VISHNU-3`)
 - [ ] `DUC-6` Validate route options are viewable and distinguishable in demo (`PENDING`)
-- [ ] `DUC-7` Finalize route payload quality for stakeholder walkthrough (`PENDING`)
+- [ ] `DUC-7` Finalize route payload quality for stakeholder walkthrough (`PENDING`, depends on `VISHNU-3`)
 
 ## AI Planning Mode: Micro-task Split Template
 

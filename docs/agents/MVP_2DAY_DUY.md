@@ -17,6 +17,17 @@ Primary role: Data Crawling (Connector A + ingestion scheduling).
 
 Merge order reference: Khoa -> Duy -> Duc -> Vishnu.
 
+## Hybrid Execution Priority
+
+Urgent unblocker task from Duy:
+- `DUY-5` (fixture/replay output) is urgent because it unblocks `VISHNU-5`.
+
+Duy start gate from Khoa:
+- `KHOA-1` and `KHOA-3` must be done before Duy marks `DUY-3` and `DUY-6` as done.
+
+Can start immediately (no waiting):
+- `DUY-1`, `DUY-2`, `DUY-4`, `DUY-5` as scaffold/prework.
+
 ## Allowed Ownership
 
 You may modify only:
@@ -41,13 +52,13 @@ Do not break the shared contract defined in `docs/agents/MVP_2DAY_ORCHESTRATION.
 ## Task Checklist
 
 ### Day 1 (Core)
-- [ ] `DUY-1` Build connector A (real limited feed or simulated source) (`PENDING`, depends on `KHOA-1`)
-- [ ] `DUY-2` Implement scheduled batch ingestion trigger (`PENDING`, depends on `KHOA-1`)
+- [ ] `DUY-1` Build connector A (real limited feed or simulated source) (`PENDING`, can start immediately; final compatibility check after `KHOA-1`)
+- [ ] `DUY-2` Implement scheduled batch ingestion trigger (`PENDING`, can start immediately; final compatibility check after `KHOA-1`)
 - [ ] `DUY-3` Produce normalized incident records from connector A (`PENDING`, depends on `KHOA-1`, `KHOA-3`)
 - [ ] `DUY-4` Add malformed-record guardrails and logging (`PENDING`, parallel with `DUC-*`, `VISHNU-*`)
 
 ### Day 2 (Integration + Demo)
-- [ ] `DUY-5` Provide deterministic replay fixture for integration testing (`PENDING`)
+- [ ] `DUY-5` Provide deterministic replay fixture for integration testing (`PENDING`, urgent unblocker for `VISHNU-5`)
 - [ ] `DUY-6` Validate handoff payload with Khoa schema checks (`PENDING`)
 - [ ] `DUY-7` Support end-to-end demo with stable ingestion run (`PENDING`)
 
