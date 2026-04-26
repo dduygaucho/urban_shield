@@ -12,6 +12,15 @@ Checkpoint cadence:
 - Core path state: `PENDING`
 - Stretch path state: `PENDING`
 
+## Branch Assignments and Allowed Writes
+
+- Duy: `mvp2day/duy-data-ingest` -> `scripts/ingest_social.py`, `scripts/ingest/**`, `services/api/main.py`, `docs/agents/MVP_2DAY_DUY.md`
+- Khoa: `mvp2day/khoa-data-contract` -> `services/api/routes/incidents.py`, `services/api/models.py`, `libs/schemas/incident.ts`, `docs/agents/MVP_2DAY_KHOA.md`
+- Duc: `mvp2day/duc-route-planning` -> `apps/web/lib/routing/**`, `apps/web/app/map/page.tsx` (route UI only), `docs/agents/MVP_2DAY_DUC.md`
+- Vishnu: `mvp2day/vishnu-safety-scoring` -> `apps/web/lib/safety/**`, `apps/web/app/map/page.tsx` (safety UI only), `docs/agents/MVP_2DAY_VISHNU.md`
+
+Merge order standard: Khoa -> Duy -> Duc -> Vishnu.
+
 ## Task Rollup
 
 - `T0` Interface freeze: `PENDING` | Primary: Khoa | Backup: Duy

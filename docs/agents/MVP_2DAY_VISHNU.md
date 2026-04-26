@@ -2,6 +2,21 @@
 
 Primary role: Route Planning (incident-route matching + safety score/ranking).
 
+## Branch Assignment
+
+- Primary branch: `mvp2day/vishnu-safety-scoring`
+- Integration base: `main`
+- Backup executor on this branch when needed: Duc
+
+## Team Branch and Allowlist Matrix (read-only reference)
+
+- Vishnu -> `mvp2day/vishnu-safety-scoring` -> `apps/web/lib/safety/**`, `apps/web/app/map/page.tsx` (safety UI only), `docs/agents/MVP_2DAY_VISHNU.md`
+- Duc -> `mvp2day/duc-route-planning` -> `apps/web/lib/routing/**`, `apps/web/app/map/page.tsx` (route UI only), `docs/agents/MVP_2DAY_DUC.md`
+- Khoa -> `mvp2day/khoa-data-contract` -> `services/api/routes/incidents.py`, `services/api/models.py`, `libs/schemas/incident.ts`, `docs/agents/MVP_2DAY_KHOA.md`
+- Duy -> `mvp2day/duy-data-ingest` -> `scripts/ingest_social.py`, `scripts/ingest/**`, `services/api/main.py`, `docs/agents/MVP_2DAY_DUY.md`
+
+Merge order reference: Khoa -> Duy -> Duc -> Vishnu.
+
 ## Allowed Ownership
 
 You may modify only:

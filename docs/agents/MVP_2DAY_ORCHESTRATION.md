@@ -9,6 +9,16 @@ All collaborators must start here, then follow their assigned task file:
 - [Vishnu task file](./MVP_2DAY_VISHNU.md)
 - [Sprint status board](./MVP_2DAY_STATUS.md)
 
+## Branch Strategy (mandatory)
+
+Each collaborator works only on their dedicated branch:
+- Duy: `mvp2day/duy-data-ingest`
+- Khoa: `mvp2day/khoa-data-contract`
+- Duc: `mvp2day/duc-route-planning`
+- Vishnu: `mvp2day/vishnu-safety-scoring`
+
+Do not commit directly to `main`.
+
 ## 1) Baseline Validation (already present in codebase)
 
 Validated from current repository state:
@@ -94,6 +104,21 @@ These are write-allow boundaries. If a path is not listed for a collaborator, it
 
 `apps/web/app/map/page.tsx` is a controlled overlap file. Duc and Vishnu must edit this file in serial integration windows only.
 
+### Branch and allowlist matrix (single reference)
+
+- `mvp2day/duy-data-ingest`
+  - allowed writes: `scripts/ingest_social.py`, `scripts/ingest/**`, `services/api/main.py`, `docs/agents/MVP_2DAY_DUY.md`
+- `mvp2day/khoa-data-contract`
+  - allowed writes: `services/api/routes/incidents.py`, `services/api/models.py`, `libs/schemas/incident.ts`, `docs/agents/MVP_2DAY_KHOA.md`
+- `mvp2day/duc-route-planning`
+  - allowed writes: `apps/web/lib/routing/**`, `apps/web/app/map/page.tsx` (route UI only), `docs/agents/MVP_2DAY_DUC.md`
+- `mvp2day/vishnu-safety-scoring`
+  - allowed writes: `apps/web/lib/safety/**`, `apps/web/app/map/page.tsx` (safety UI only, serial window), `docs/agents/MVP_2DAY_VISHNU.md`
+
+Merge safety:
+- Merge order for controlled-overlap work: Khoa -> Duy -> Duc -> Vishnu.
+- If `apps/web/app/map/page.tsx` has conflicts, resolve in a dedicated integration PR, not in feature PRs.
+
 ### Primary and backup ownership (for seamless takeover)
 
 Every task has a primary owner and one backup owner who can take over immediately if needed.
@@ -116,7 +141,7 @@ Status values: `PENDING`, `IN_PROGRESS`, `BLOCKED`, `DONE`.
 - [ ] `T4` Safety scoring integrated with incidents (`PENDING`) | Primary: Vishnu | Backup: Duc
 - [ ] `T5` Route incident inspection output available (`PENDING`) | Primary: Vishnu | Backup: Duc
 - [ ] `T6` End-to-end scripted demo passes (`PENDING`) | Primary: Duc | Backup: Duy
-- [ ] `T7` Optional transport linkage (stretch) (`PENDING`) | Primary: Duy | Backup: Khoa
+- [ ] `T7` Public transport linkage (stretch) (`PENDING`) | Primary: Duy | Backup: Khoa
 
 Update protocol:
 - Each collaborator updates only their own collaborator file.

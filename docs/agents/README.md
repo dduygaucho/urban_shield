@@ -13,6 +13,18 @@ This folder is the **single place** for multi-agent workflows. Each subfolder is
 
 Two agents may run **in parallel** only if their **allowed path lists are disjoint**. If a path is not listed in an agent brief, that agent **must not** edit it.
 
+## MVP 2-day branch policy
+
+For the named-collaborator sprint, use fixed branches:
+- Duy: `mvp2day/duy-data-ingest`
+- Khoa: `mvp2day/khoa-data-contract`
+- Duc: `mvp2day/duc-route-planning`
+- Vishnu: `mvp2day/vishnu-safety-scoring`
+
+Canonical allowlist and merge policy is maintained in:
+- [MVP_2DAY_ORCHESTRATION.md](./MVP_2DAY_ORCHESTRATION.md)
+- [MVP_2DAY_STATUS.md](./MVP_2DAY_STATUS.md)
+
 ## Phase A conflict matrix (who may touch what)
 
 | Path pattern | Phase A parallel? | Owner |
