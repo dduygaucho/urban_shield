@@ -26,6 +26,11 @@ export type CanonicalIncidentRecord = {
   lng: number;
   duration_class: DurationClass;
   confidence?: number | null;
+  /** Optional transport route metadata; point-only incidents omit these. */
+  route_type?: string | null;
+  route_external_id?: string | null;
+  route_label?: string | null;
+  geometry_ref?: string | null;
 };
 
 export type IncidentCreatePayload = {
@@ -38,6 +43,10 @@ export type IncidentCreatePayload = {
   description?: string;
   lat: number;
   lng: number;
+  route_type?: string | null;
+  route_external_id?: string | null;
+  route_label?: string | null;
+  geometry_ref?: string | null;
 };
 
 export type IncidentRecord = Partial<CanonicalIncidentRecord> & {

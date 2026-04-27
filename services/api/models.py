@@ -35,3 +35,9 @@ class Incident(Base):
         nullable=False,
         default=lambda: datetime.now(timezone.utc),
     )
+
+    # Optional transport route linkage (point incidents omit these).
+    route_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    route_external_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    route_label: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    geometry_ref: Mapped[str | None] = mapped_column(String(256), nullable=True)

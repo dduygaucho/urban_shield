@@ -67,6 +67,11 @@ LEGACY_TO_CANONICAL_COLUMNS = {
     "timestamp": ("DATETIME", "created_at"),
     "duration_class": ("VARCHAR(16)", "'short_term'"),
     "confidence": ("FLOAT", "NULL"),
+    # Optional transport metadata (nullable for legacy point-only rows).
+    "route_type": ("VARCHAR(64)", "NULL"),
+    "route_external_id": ("VARCHAR(128)", "NULL"),
+    "route_label": ("VARCHAR(256)", "NULL"),
+    "geometry_ref": ("VARCHAR(256)", "NULL"),
 }
 
 
@@ -82,6 +87,12 @@ class IncidentCreate(BaseModel):
     description: str | None = None
     lat: float
     lng: float
+
+    # Optional transport route metadata (additive; point reports omit).
+    route_type: str | None = None
+    route_external_id: str | None = None
+    route_label: str | None = None
+    geometry_ref: str | None = None
 
     @model_validator(mode="after")
     def validate_incident_type(self) -> "IncidentCreate":
@@ -107,6 +118,11 @@ class IncidentOut(BaseModel):
     lat: float
     lng: float
     created_at: datetime
+
+    route_type: str | None = None
+    route_external_id: str | None = None
+    route_label: str | None = None
+    geometry_ref: str | None = None
 
     model_config = {"from_attributes": True}
 
@@ -153,6 +169,14 @@ def _first_present(payload: Mapping[str, Any], *keys: str) -> Any:
     return None
 
 
+def _optional_str(payload: Mapping[str, Any], *keys: str) -> str | None:
+    value = _first_present(payload, *keys)
+    if value is None:
+        return None
+    s = str(value).strip()
+    return s or None
+
+
 def normalize_incident_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     """Normalize connector/API input into the canonical incident shape."""
     description = str(_first_present(payload, "description", "text", "title", "summary") or "").strip()
@@ -186,6 +210,10 @@ def normalize_incident_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
         "lng": float(lng),
         "duration_class": duration_class,
         "confidence": confidence_value,
+        "route_type": _optional_str(payload, "route_type"),
+        "route_external_id": _optional_str(payload, "route_external_id"),
+        "route_label": _optional_str(payload, "route_label"),
+        "geometry_ref": _optional_str(payload, "geometry_ref"),
     }
     validate_canonical_incident(canonical)
     return canonical
@@ -249,6 +277,10 @@ def create_incident(payload: IncidentCreate, db: Session = Depends(get_db)):
         lat=canonical["lat"],
         lng=canonical["lng"],
         created_at=canonical["timestamp"],
+        route_type=canonical.get("route_type"),
+        route_external_id=canonical.get("route_external_id"),
+        route_label=canonical.get("route_label"),
+        geometry_ref=canonical.get("geometry_ref"),
     )
     db.add(row)
     db.commit()

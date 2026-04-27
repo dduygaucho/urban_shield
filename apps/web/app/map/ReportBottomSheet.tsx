@@ -1,10 +1,36 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import type { IncidentCategory } from "@schemas/incident";
+import {
+  type NormalizedRouteMetadata,
+  type RouteIndexEntry,
+  type TransportRouteType,
+  lookupRoute,
+} from "@/lib/reporting/routeLookup";
+import {
+  type ReportMode,
+  buildTransportReportFields,
+} from "@/lib/reporting/transportReport";
 import { CategorySelector } from "./CategorySelector";
 import { GeocoderSearch } from "./GeocoderSearch";
 
 export type LocationMode = "current" | "pin" | "search";
+
+/** Snapshot for parent to consume (transport route reporting). */
+export type TransportStateSnapshot = {
+  reportMode: ReportMode;
+  transportRouteType: TransportRouteType;
+  routeQuery: string;
+  /** Normalized match from `routeIndex`, or null. */
+  resolvedRoute: NormalizedRouteMetadata | null;
+  /** Which strategy found `resolvedRoute`, or null. */
+  lookupStrategy: "exact" | "startsWith" | "contains" | null;
+  /** Optional fields aligned with `IncidentCreatePayload` transport keys (partial). */
+  transportFields: ReturnType<typeof buildTransportReportFields>;
+};
+
+export type { ReportMode };
 
 export function ReportBottomSheet({
   open,
@@ -25,6 +51,17 @@ export function ReportBottomSheet({
   onSubmit,
   onUseCurrentLocation,
   pinModeActive,
+  reportMode: reportModeProp,
+  onReportModeChange,
+  transportRouteType: transportRouteTypeProp,
+  onTransportRouteTypeChange,
+  routeQuery: routeQueryProp,
+  onRouteQueryChange,
+  routeIndex = [],
+  onTransportStateChange,
+  onRouteLookupResult,
+  /** When set, also requires this in transport mode for the submit button (parent-driven readiness). */
+  transportSubmitReady: transportSubmitReadyProp,
 }: {
   open: boolean;
   onClose: () => void;
@@ -45,8 +82,117 @@ export function ReportBottomSheet({
   onSubmit: () => void;
   onUseCurrentLocation: () => void;
   pinModeActive: boolean;
+  reportMode?: ReportMode;
+  onReportModeChange?: (m: ReportMode) => void;
+  transportRouteType?: TransportRouteType;
+  onTransportRouteTypeChange?: (t: TransportRouteType) => void;
+  /** Free-text route number or name. */
+  routeQuery?: string;
+  onRouteQueryChange?: (q: string) => void;
+  routeIndex?: ReadonlyArray<RouteIndexEntry>;
+  onTransportStateChange?: (state: TransportStateSnapshot) => void;
+  onRouteLookupResult?: (
+    match: NormalizedRouteMetadata | null,
+    strategy: TransportStateSnapshot["lookupStrategy"],
+  ) => void;
+  /** Override whether transport form allows submit; default: route type + non-empty query, or a resolved index match. */
+  transportSubmitReady?: boolean;
 }) {
-  if (!open) return null;
+  const reportModeIsControlled = reportModeProp !== undefined;
+  const [reportModeState, setReportModeState] = useState<ReportMode>("location");
+  const reportMode = reportModeIsControlled ? (reportModeProp as ReportMode) : reportModeState;
+  const setReportMode = (m: ReportMode) => {
+    onReportModeChange?.(m);
+    if (!reportModeIsControlled) {
+      setReportModeState(m);
+    }
+  };
+
+  const trtControlled = transportRouteTypeProp !== undefined;
+  const [trtState, setTrtState] = useState<TransportRouteType>("bus");
+  const transportRouteType = trtControlled
+    ? (transportRouteTypeProp as TransportRouteType)
+    : trtState;
+  const setTransportRouteType = (t: TransportRouteType) => {
+    onTransportRouteTypeChange?.(t);
+    if (!trtControlled) {
+      setTrtState(t);
+    }
+  };
+
+  const rqControlled = routeQueryProp !== undefined;
+  const [routeQueryState, setRouteQueryState] = useState("");
+  const routeQuery = rqControlled ? (routeQueryProp as string) : routeQueryState;
+  const setRouteQuery = (q: string) => {
+    onRouteQueryChange?.(q);
+    if (!rqControlled) {
+      setRouteQueryState(q);
+    }
+  };
+
+  const { match: resolvedRoute, strategy: lookupStrategy } = lookupRoute({
+    query: routeQuery,
+    routeType: reportMode === "transport" ? transportRouteType : undefined,
+    entries: reportMode === "transport" ? routeIndex : [],
+  });
+
+  const transportFields = useMemo(
+    () =>
+      buildTransportReportFields({
+        reportMode: reportMode === "transport" ? "transport" : "location",
+        resolvedRoute: reportMode === "transport" ? resolvedRoute : null,
+        routeTypeInput: reportMode === "transport" ? transportRouteType : null,
+        routeQueryText: reportMode === "transport" ? routeQuery : undefined,
+        useQueryAsLabelWhenUnresolved: true,
+      }),
+    [reportMode, resolvedRoute, transportRouteType, routeQuery],
+  );
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    if (reportMode === "transport") {
+      onRouteLookupResult?.(resolvedRoute, lookupStrategy);
+    } else {
+      onRouteLookupResult?.(null, null);
+    }
+  }, [open, reportMode, resolvedRoute, lookupStrategy, onRouteLookupResult]);
+
+  useEffect(() => {
+    if (!open || !onTransportStateChange) {
+      return;
+    }
+    onTransportStateChange({
+      reportMode,
+      transportRouteType,
+      routeQuery,
+      resolvedRoute: reportMode === "transport" ? resolvedRoute : null,
+      lookupStrategy: reportMode === "transport" ? lookupStrategy : null,
+      transportFields,
+    });
+  }, [
+    open,
+    onTransportStateChange,
+    reportMode,
+    transportRouteType,
+    routeQuery,
+    resolvedRoute,
+    lookupStrategy,
+    transportFields,
+  ]);
+
+  const transportFormReady =
+    reportMode !== "transport" ||
+    resolvedRoute != null ||
+    (Boolean(transportRouteType) && routeQuery.trim().length > 0);
+  const transportExtraReady = transportSubmitReadyProp ?? transportFormReady;
+
+  const canSubmit = !submitting && locationReady && transportExtraReady;
+
+  if (!open) {
+    return null;
+  }
 
   return (
     <>
@@ -79,10 +225,86 @@ export function ReportBottomSheet({
             </button>
           </div>
 
+          <div className="mb-4" role="group" aria-label="What to report">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">What to report</p>
+            <div className="flex gap-1 rounded-2xl bg-slate-100 p-1 ring-1 ring-slate-200/80">
+              <button
+                type="button"
+                aria-pressed={reportMode === "location"}
+                onClick={() => setReportMode("location")}
+                className={`min-h-[2.75rem] flex-1 rounded-xl px-2 text-sm font-semibold transition ${
+                  reportMode === "location" ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200" : "text-slate-600"
+                }`}
+              >
+                Report at location
+              </button>
+              <button
+                type="button"
+                aria-pressed={reportMode === "transport"}
+                onClick={() => setReportMode("transport")}
+                className={`min-h-[2.75rem] flex-1 rounded-xl px-2 text-sm font-semibold transition ${
+                  reportMode === "transport" ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200" : "text-slate-600"
+                }`}
+              >
+                Report on transport route
+              </button>
+            </div>
+          </div>
+
           {pinModeActive && (
             <div className="mb-3 rounded-2xl bg-amber-50 px-3 py-2 text-center text-sm font-medium text-amber-950 ring-1 ring-amber-200">
               Move the map to place the pin
             </div>
+          )}
+
+          {reportMode === "transport" && (
+            <section
+              className="mb-4 rounded-2xl border border-slate-200/90 bg-slate-50/80 p-3 ring-1 ring-slate-200/60"
+              aria-label="Transport route"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Transport route</p>
+              <label className="mt-2 block" htmlFor="report-route-type">
+                <span className="text-xs font-medium text-slate-600">Route type</span>
+                <select
+                  id="report-route-type"
+                  value={transportRouteType}
+                  onChange={(e) => setTransportRouteType(e.target.value as TransportRouteType)}
+                  disabled={submitting}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-inner focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                >
+                  <option value="bus">bus</option>
+                  <option value="train">train</option>
+                  <option value="tram">tram</option>
+                </select>
+              </label>
+              <label className="mt-2 block" htmlFor="report-route-query">
+                <span className="text-xs font-medium text-slate-600">Route number or name</span>
+                <input
+                  id="report-route-query"
+                  type="text"
+                  value={routeQuery}
+                  onChange={(e) => setRouteQuery(e.target.value)}
+                  disabled={submitting}
+                  placeholder="e.g. 402, 96, Craigieburn"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-inner placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                  autoComplete="off"
+                />
+              </label>
+              {reportMode === "transport" && routeIndex.length > 0 && (
+                <p className="mt-2 text-xs text-slate-600" aria-live="polite">
+                  {resolvedRoute ? (
+                    <span>
+                      Matched: <span className="font-medium text-slate-800">{resolvedRoute.route_label}</span>{" "}
+                      {lookupStrategy ? <span className="text-slate-500">({lookupStrategy})</span> : null}
+                    </span>
+                  ) : (
+                    <span>
+                      {routeQuery.trim() ? "No match in the route list — you can still submit the text you entered." : ""}
+                    </span>
+                  )}
+                </p>
+              )}
+            </section>
           )}
 
           <section className="mb-4 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200/80">
@@ -158,14 +380,29 @@ export function ReportBottomSheet({
 
           <button
             type="button"
-            disabled={submitting || !locationReady}
+            disabled={!canSubmit}
             onClick={onSubmit}
             className="mb-1 min-h-[3.25rem] rounded-2xl bg-slate-900 py-3 text-base font-semibold text-white shadow-lg shadow-slate-900/25 transition hover:bg-slate-800 active:scale-[0.99] disabled:opacity-50"
           >
-            {submitting ? "Sending…" : !locationReady ? "Getting location…" : "Report incident"}
+            {submitting
+              ? "Sending…"
+              : !locationReady
+                ? "Getting location…"
+                : reportMode === "transport" && !transportExtraReady
+                  ? "Set route and location"
+                  : "Report incident"}
           </button>
         </div>
       </div>
     </>
   );
 }
+
+// Re-exports for parents wiring `routeIndex` / payload helpers
+export type {
+  NormalizedRouteMetadata,
+  RouteIndexEntry,
+  TransportRouteType,
+} from "@/lib/reporting/routeLookup";
+export { lookupRoute, normalizeRouteQuery, TRANSPORT_ROUTE_TYPES } from "@/lib/reporting/routeLookup";
+export { buildTransportReportFields, type TransportReportFields } from "@/lib/reporting/transportReport";
