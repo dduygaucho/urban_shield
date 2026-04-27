@@ -19,11 +19,69 @@ if str(_API) not in sys.path:
 
 from routes.incidents import classify_duration, classify_incident_type, normalize_incident_payload  # noqa: E402
 
+from .llm_verifier import verify_candidate_with_llm
+
 SourceCategory = Literal["news", "social"]
 
 MIN_STANDALONE_CONFIDENCE = 0.40
 VERIFIED_CONFIDENCE = 0.75
 MATCH_RADIUS_M = 500.0
+
+SPORTS_CONTEXT_TERMS = {
+    "afl",
+    "a-league",
+    "basketball",
+    "blues",
+    "coach",
+    "club",
+    "derby",
+    "dockers",
+    "draft",
+    "fc",
+    "fixture",
+    "footy",
+    "freo",
+    "fremantle",
+    "game",
+    "goal",
+    "league",
+    "match",
+    "player",
+    "premiership",
+    "quarter",
+    "rd",
+    "review",
+    "round",
+    "score",
+    "season",
+    "smurf",
+    "stadium",
+    "team",
+    "vs",
+}
+
+PUBLIC_SAFETY_TERMS = {
+    "arrest",
+    "assault",
+    "attack",
+    "break-in",
+    "burglary",
+    "crime",
+    "emergency",
+    "harass",
+    "incident",
+    "intoxicated",
+    "police",
+    "robbery",
+    "stolen",
+    "suspicious",
+    "theft",
+    "threat",
+    "unsafe",
+    "victim",
+    "violence",
+    "weapon",
+}
 
 
 @dataclass(frozen=True)
@@ -65,6 +123,22 @@ def normalized_hash(*parts: str) -> str:
     text = " ".join(clean_text(part).lower() for part in parts if part)
     text = re.sub(r"[^a-z0-9]+", " ", text).strip()
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:32]
+
+
+def _tokens(value: str) -> set[str]:
+    return {token for token in re.split(r"[^a-z0-9-]+", value.lower()) if token}
+
+
+def is_blocked_context(item: RawSourceItem, full_text: str) -> bool:
+    text_tokens = _tokens(full_text)
+    source_tokens = _tokens(item.source_name)
+    sports_hits = text_tokens & SPORTS_CONTEXT_TERMS
+    if not sports_hits:
+        return False
+    if source_tokens & SPORTS_CONTEXT_TERMS:
+        return True
+    safety_hits = text_tokens & PUBLIC_SAFETY_TERMS
+    return len(sports_hits) >= 2 and len(safety_hits) <= 1
 
 
 def evidence_sources_to_set(value: str | None) -> set[str]:
@@ -109,6 +183,8 @@ def candidate_from_item(item: RawSourceItem, place_lookup) -> IncidentCandidate 
     title = clean_text(item.title)
     body = clean_text(item.text)
     full_text = f"{title} {body}".strip()
+    if is_blocked_context(item, full_text):
+        return None
     incident_type = classify_incident_type(full_text)
     place = place_lookup(full_text)
     if not incident_type or not place:
@@ -124,6 +200,24 @@ def candidate_from_item(item: RawSourceItem, place_lookup) -> IncidentCandidate 
         timestamp = timestamp.replace(tzinfo=timezone.utc)
 
     duration_class = classify_duration(full_text)
+    llm_decision = verify_candidate_with_llm(
+        source_category=item.source_category,
+        source_name=item.source_name,
+        title=title,
+        text=body,
+        matched_place=place_name,
+        local_type=incident_type,
+        local_duration=duration_class,
+        local_confidence=confidence,
+    )
+    if llm_decision is not None:
+        if not llm_decision.is_incident:
+            return None
+        incident_type = llm_decision.incident_type or incident_type
+        duration_class = llm_decision.duration_class or duration_class
+        confidence = max(confidence, llm_decision.confidence)
+        reasons.append(f"llm={llm_decision.reason}")
+
     payload = normalize_incident_payload(
         {
             "source": item.source_name,
@@ -195,4 +289,3 @@ def strengthened_confidence(current: float | None, candidate: IncidentCandidate)
     base = current if current is not None else 0.0
     boost = 0.18 if candidate.source_category == "news" else 0.12
     return min(0.95, max(base, candidate.confidence) + boost)
-

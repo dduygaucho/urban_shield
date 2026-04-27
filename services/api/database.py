@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     ingest_interval_seconds: int = 1800
     ingest_rss_feeds: str = ""
     ingest_reddit_queries: str = "melbourne fight,melbourne robbery,geelong suspicious,melbourne attack"
+    llm_verifier_enabled: bool = False
+    llm_api_url: str = "https://api.openai.com/v1/chat/completions"
+    llm_api_key: str = ""
+    llm_model: str = ""
+    llm_min_confidence: float = 0.60
+    llm_timeout_seconds: float = 20.0
 
 
 settings = Settings()

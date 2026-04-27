@@ -47,6 +47,18 @@ class IngestPipelineTests(unittest.TestCase):
 
         self.assertIsNone(candidate_from_item(item, lookup_place))
 
+    def test_sports_post_with_place_name_is_skipped(self) -> None:
+        item = RawSourceItem(
+            source_category="social",
+            source_name="reddit:FremantleFC",
+            title="Rd 7 vs Carlton smurf review",
+            text="Fremantle player review after the AFL match against Carlton.",
+            url="https://www.reddit.com/r/FremantleFC/comments/1swset1/rd_7_vs_carlton_smurf_review/",
+            published_at=datetime(2026, 4, 27, tzinfo=timezone.utc),
+        )
+
+        self.assertIsNone(candidate_from_item(item, lookup_place))
+
     def test_independent_source_can_match_existing_incident(self) -> None:
         item = RawSourceItem(
             source_category="social",
@@ -66,7 +78,6 @@ class IngestPipelineTests(unittest.TestCase):
             created_at=candidate.timestamp,
             description="News report: fight near geelong station",
         )
-        print('incident', incident)
 
         self.assertTrue(candidate_matches_incident(candidate, incident))
         self.assertGreater(strengthened_confidence(0.55, candidate), 0.55)
@@ -79,4 +90,3 @@ class IngestPipelineTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

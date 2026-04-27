@@ -10,8 +10,10 @@ Safety navigation demo: **report incidents** and **view them on a map** (Next.js
 | `apps/web/app/map/` | Map UI (Person 2) |
 | `apps/web/app/report/` | Report redirect / help (Person 3); reporting UX lives on `/map` |
 | `apps/web/lib/`, `apps/web/app/page.tsx`, `libs/schemas/` | Integration (Person 4) |
-| `scripts/ingest_social.py` | Optional ingestion (Person 4) |
+| `scripts/ingest/`, `scripts/ingest_social.py` | News/social incident crawling (Person 4) |
 | `scripts/ingest/README_transport_gtfs_vic.md` | Victoria GTFS schedule ingest (scratch disk + normalized route index) |
+
+**News/social incident crawling:** scheduled RSS + Reddit ingestion is documented in [docs/CRAWLING_INGESTION.md](./docs/CRAWLING_INGESTION.md). It extracts likely incidents, scores confidence, and strengthens incidents when independent sources corroborate the same event.
 
 **Victoria public transport (GTFS):** large `gtfs_schedule.zip` downloads must live on scratch, not in git. Default path and full runbook: [scripts/ingest/README_transport_gtfs_vic.md](./scripts/ingest/README_transport_gtfs_vic.md). Quick start after clone:
 
@@ -124,9 +126,19 @@ The web app depends on **`mapbox-gl`** and **`@mapbox/mapbox-gl-geocoder`** (pla
 
 Open [http://localhost:3000](http://localhost:3000).
 
-## Optional: Reddit ingestion
+## Optional: News / Social Crawling
 
-Requires the same DB as the API (see `services/api/.env`). From **repo root**:
+Requires the same DB as the API and reads crawler config from `services/api/.env`.
+
+Scheduled mode:
+
+```bash
+cd services/api
+# set INGEST_ENABLED=true in .env first
+uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Manual one-shot mode from **repo root**:
 
 ```bash
 module load Anaconda3
@@ -134,7 +146,7 @@ conda activate urban_shield
 PYTHONPATH=services/api python scripts/ingest_social.py
 ```
 
-Most posts **will not** include coordinates — the script only inserts rows when it finds a naive `(lat, lng)` pattern in text (demo-only).
+Full crawler behavior, env vars, confidence scoring, corroboration rules, and tests are in [docs/CRAWLING_INGESTION.md](./docs/CRAWLING_INGESTION.md).
 
 ## Demo flow
 
