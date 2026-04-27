@@ -64,4 +64,10 @@ export type IncidentRecord = Partial<CanonicalIncidentRecord> & {
   lat: number;
   lng: number;
   created_at: string;
+  /** GET /incidents — optional enrichment (news ingest, verification). */
+  source_url?: string | null;
+  evidence_sources?: string | null;
+  verification_status?: string | null;
+  verification_reason?: string | null;
+  source_category?: string | null;
 };

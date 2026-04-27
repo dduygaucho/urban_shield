@@ -1,5 +1,6 @@
-import type { RouteIndexEntry } from "@/lib/reporting/routeLookup";
-import type { RouteOption } from "@/lib/routing/contracts";
+import type { RouteIndexEntry, TransportRouteType } from "@/lib/reporting/routeLookup";
+import { ROUTE_CANDIDATE_LIMIT, type RouteOption } from "@/lib/routing/contracts";
+import { transitKindShortLabel } from "@/lib/routing/transitDisplay";
 
 type LngLat = [number, number];
 
@@ -122,6 +123,24 @@ function emptyRouteOption(
   };
 }
 
+function parseTransitRouteTypeFromProps(props: Record<string, unknown>): TransportRouteType | undefined {
+  const raw = props.route_type;
+  if (typeof raw !== "string") return undefined;
+  const s = raw.trim().toLowerCase();
+  if (s === "bus" || s === "train" || s === "tram") return s;
+  return undefined;
+}
+
+function resolveTransitRouteType(
+  routeRow: RouteIndexEntry | undefined,
+  props: Record<string, unknown>,
+): TransportRouteType {
+  if (routeRow?.route_type) return routeRow.route_type;
+  const fromProps = parseTransitRouteTypeFromProps(props);
+  if (fromProps) return fromProps;
+  return "bus";
+}
+
 function walkingSegmentMetadata(distanceMeters: number, durationMinutes: number, label: string): RouteOption["metadata"] {
   return {
     segment_display: "walking_only",
@@ -131,13 +150,32 @@ function walkingSegmentMetadata(distanceMeters: number, durationMinutes: number,
   };
 }
 
+/** Build a walking {@link RouteOption} (shared by synthetic candidates and Mapbox Directions). */
+export function createWalkingRouteOption(params: {
+  id: string;
+  label: string;
+  geometry: GeoJSON.LineString;
+  distanceMeters: number;
+  durationMinutes: number;
+}): RouteOption {
+  return emptyRouteOption(
+    params.id,
+    "walking",
+    params.label,
+    params.geometry,
+    params.distanceMeters,
+    params.durationMinutes,
+    walkingSegmentMetadata(params.distanceMeters, params.durationMinutes, "Walk"),
+  );
+}
+
 /** True if polyline is exactly two points (straight chord) — excluded from walking MVP output. */
 function isStraightLineTwoPoint(coords: LngLat[]): boolean {
   return coords.length === 2;
 }
 
 /**
- * Deterministic walking alternatives (2–3). Every candidate has ≥3 vertices (no straight-line-only).
+ * Deterministic walking alternatives (chord-offset polylines). Every candidate has ≥3 vertices (no straight-line-only).
  */
 export function buildWalkingRouteCandidates(start: LngLat, end: LngLat): RouteOption[] {
   const chordM = haversineMeters(start, end);
@@ -151,6 +189,8 @@ export function buildWalkingRouteCandidates(start: LngLat, end: LngLat): RouteOp
   const perpA = basePerp;
   const perpB = -basePerp * 0.85;
   const perpC = basePerp * 0.55;
+  const perpD = basePerp * 0.72;
+  const perpE = -basePerp * 0.62;
 
   const variants: Array<{ id: string; label: string; coords: LngLat[] }> = [
     {
@@ -185,6 +225,27 @@ export function buildWalkingRouteCandidates(start: LngLat, end: LngLat): RouteOp
         end,
       ],
     },
+    {
+      id: "walk-shape-d",
+      label: "Walking - Riverside offset",
+      coords: [
+        start,
+        waypointChordPerturbed(start, end, 0.33, perpD),
+        waypointChordPerturbed(start, end, 0.58, perpD * 0.45),
+        end,
+      ],
+    },
+    {
+      id: "walk-shape-e",
+      label: "Walking - Wide detour",
+      coords: [
+        start,
+        waypointChordPerturbed(start, end, 0.18, perpE),
+        midpoint(start, end),
+        waypointChordPerturbed(start, end, 0.82, perpE * 0.3),
+        end,
+      ],
+    },
   ];
 
   const seen = new Set<string>();
@@ -209,10 +270,10 @@ export function buildWalkingRouteCandidates(start: LngLat, end: LngLat): RouteOp
         walkingSegmentMetadata(distance, durationMinutes, "Walk"),
       ),
     );
-    if (out.length >= 3) break;
+    if (out.length >= ROUTE_CANDIDATE_LIMIT) break;
   }
 
-  return out.slice(0, 3);
+  return out.slice(0, ROUTE_CANDIDATE_LIMIT);
 }
 
 function asLineString(geometry: GeoJSON.Geometry): GeoJSON.LineString | null {
@@ -376,7 +437,7 @@ export function buildBusRouteCandidatesFromGeoJson(params: {
   routeIndexByGeometryRef: Readonly<Record<string, RouteIndexEntry>>;
   limit?: number;
 }): RouteOption[] {
-  const { start, end, geojson, routeIndexByGeometryRef, limit = 3 } = params;
+  const { start, end, geojson, routeIndexByGeometryRef, limit = ROUTE_CANDIDATE_LIMIT } = params;
 
   type Scored = { option: RouteOption; rankScore: number };
   const candidates: Scored[] = [];
@@ -436,21 +497,24 @@ export function buildBusRouteCandidatesFromGeoJson(params: {
     const durationMinutes =
       estimateWalkingMinutes(accessWalkM + finalWalkM) + estimateBusMinutes(busSegmentM);
 
-    const segmentBusLabel = `Bus ${routeLabel}`;
+    const transitRouteType = resolveTransitRouteType(routeRow, props);
+    const transitPrefix = transitKindShortLabel(transitRouteType);
+    const segmentTransitLabel = `${transitPrefix} ${routeLabel}`;
 
     const option = emptyRouteOption(
       `bus-${geometryRef}`,
-      "bus",
-      segmentBusLabel,
+      "publicTransport",
+      segmentTransitLabel,
       geometryMerged,
       totalMeters,
       durationMinutes,
       {
+        route_type: transitRouteType,
         route_external_id: routeExternalId,
         route_label: routeLabel,
         geometry_ref: geometryRef,
         segment_display: "bus_final_walk",
-        segment_bus_label: segmentBusLabel,
+        segment_bus_label: routeLabel,
         segment_final_walk_label: "Walk to destination",
         segment_final_walk_m: finalWalkM,
         segment_final_walk_min: estimateWalkingMinutes(finalWalkM),

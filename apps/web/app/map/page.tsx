@@ -37,19 +37,20 @@ import {
   type RoutePanelDock,
   RoutePlanningPanel,
 } from "@/app/map/components/RoutePlanningPanel";
+import { RouteIncidentDetailPanel } from "@/app/map/components/RouteIncidentDetailPanel";
 import { ReportPanelContainer } from "@/app/map/components/ReportPanelContainer";
 import { useMapActionMode } from "@/app/map/hooks/useMapActionMode";
+import { fetchWalkingRoutesFromMapbox } from "@/lib/routing/mapboxWalkingDirections";
 import {
   buildBusRouteCandidatesFromGeoJson,
   buildWalkingRouteCandidates,
 } from "@/lib/routing/routePlanner";
-import type { RouteOption, RouteTravelMode } from "@/lib/routing/contracts";
+import { ROUTE_CANDIDATE_LIMIT, type RouteOption, type RouteTravelMode } from "@/lib/routing/contracts";
 import { enrichAndRankRoutes } from "@/lib/safety/scoreRoute";
-
 /** Agent-F normalized route list (metadata only). */
-import vicRoutesNormalized from "@/lib/data/transport_routes_vic_normalized.json";
-/** Agent-F join index: by_geometry_ref, by_route_external_id. */
-import vicGeometryIndex from "@/lib/data/transport_route_geometry_index_vic.json";
+ import vicRoutesNormalized from "../../../../scripts/ingest/transport_routes_vic_normalized.json";
+ /** Agent-F join index: by_geometry_ref, by_route_external_id. */
+ import vicGeometryIndex from "../../../../scripts/ingest/transport_route_geometry_index_vic.json"; 
 
 function defaultCenterFromEnv(): [number, number] {
   const v = process.env.NEXT_PUBLIC_MAP_DEFAULT?.toLowerCase();
@@ -210,6 +211,10 @@ export default function MapPage() {
   const [routeOptions, setRouteOptions] = useState<RouteOption[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
   const [routeLoading, setRouteLoading] = useState(false);
+  /** When false, route mode stays on but the planning panel is hidden for full-map view. */
+  const [routePanelExpanded, setRoutePanelExpanded] = useState(true);
+  /** Inspect one incident beside the map (markers + route card list stay in sync). */
+  const [routeFocusedIncidentId, setRouteFocusedIncidentId] = useState<string | null>(null);
 
   const [reportMode, setReportMode] = useState<ReportMode>("location");
   const [transportRouteType, setTransportRouteType] = useState<TransportRouteType>("bus");
@@ -272,6 +277,17 @@ export default function MapPage() {
     return "right";
   }, [mapReady, selectedRoute, viewportSize.width]);
 
+  /** Keep incident inspector on the opposite side of the route planner when side-docked; left when route is bottom sheet. */
+  const routeIncidentDetailDock = useMemo<"left" | "right">(() => {
+    if (routePanelDock === "bottom") return "left";
+    return routePanelDock === "left" ? "right" : "left";
+  }, [routePanelDock]);
+
+  const routeFocusedIncident = useMemo((): IncidentRecord | null => {
+    if (!routeFocusedIncidentId) return null;
+    return incidents.find((i) => i.id === routeFocusedIncidentId) ?? null;
+  }, [incidents, routeFocusedIncidentId]);
+
   const displayedIncidents = useMemo(() => {
     if (mapActionMode !== "route" || !selectedRoute) {
       return incidents;
@@ -295,7 +311,30 @@ export default function MapPage() {
   const clearRouteResults = useCallback(() => {
     setRouteOptions([]);
     setSelectedRouteId(null);
+    setRouteFocusedIncidentId(null);
   }, []);
+
+  const routeIncidentMarkerClickRef = useRef<(id: string) => void>(() => {});
+  const mapActionModeRef = useRef(mapActionMode);
+  mapActionModeRef.current = mapActionMode;
+  useEffect(() => {
+    routeIncidentMarkerClickRef.current = (id: string) => {
+      if (mapActionModeRef.current === "route") setRouteFocusedIncidentId(id);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (mapActionMode !== "route") {
+      setRouteFocusedIncidentId(null);
+    }
+  }, [mapActionMode]);
+
+  useEffect(() => {
+    if (!routeFocusedIncidentId) return;
+    if (!displayedIncidents.some((i) => i.id === routeFocusedIncidentId)) {
+      setRouteFocusedIncidentId(null);
+    }
+  }, [displayedIncidents, routeFocusedIncidentId]);
 
   const loadIncidents = useCallback(async (lat: number, lng: number) => {
     setLoadError(null);
@@ -333,6 +372,12 @@ export default function MapPage() {
       { enableHighAccuracy: true, timeout: 10_000 },
     );
   }, []);
+
+  useEffect(() => {
+    if (mapActionMode !== "route") {
+      setRoutePanelExpanded(true);
+    }
+  }, [mapActionMode]);
 
   useEffect(() => {
     const el = mapEl.current;
@@ -402,9 +447,40 @@ export default function MapPage() {
     };
   }, [clearRouteEndpointMarkers, token]); // eslint-disable-line react-hooks/exhaustive-deps -- map mounts once per token; GPS uses flyTo
 
+  /**
+   * Load incidents for what is on screen — same radius/hours as GET /incidents.
+   * Previously we keyed only on `mapCenter` state (GPS/default). That diverges from the
+   * visible map after pan/zoom or when GPS ≠ the area you queried in the browser, so pins
+   * disappeared even though /incidents?lat=Melbourne returned rows. Sync to map.getCenter()
+   * once the map exists, and refresh after pan/zoom (debounced).
+   */
   useEffect(() => {
-    void loadIncidents(mapCenter[1], mapCenter[0]);
-  }, [mapCenter, loadIncidents]);
+    const map = mapRef.current;
+    if (!mapReady || !map) {
+      void loadIncidents(mapCenter[1], mapCenter[0]);
+      return;
+    }
+
+    let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const syncFromViewport = () => {
+      const c = map.getCenter();
+      void loadIncidents(c.lat, c.lng);
+    };
+
+    const onMoveEnd = () => {
+      if (debounceTimer !== undefined) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(syncFromViewport, 350);
+    };
+
+    syncFromViewport();
+    map.on("moveend", onMoveEnd);
+
+    return () => {
+      if (debounceTimer !== undefined) clearTimeout(debounceTimer);
+      map.off("moveend", onMoveEnd);
+    };
+  }, [mapReady, mapCenter, loadIncidents]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -735,12 +811,22 @@ export default function MapPage() {
     clearMarkers();
     for (const inc of displayedIncidents) {
       const el = createIncidentMarkerElement(inc.category, inc.description);
+      if (routeFocusedIncidentId === inc.id) {
+        el.style.outline = "3px solid #2563eb";
+        el.style.outlineOffset = "3px";
+        el.style.borderRadius = "10px";
+      }
+      const onMarkerClick = (e: MouseEvent) => {
+        e.stopPropagation();
+        routeIncidentMarkerClickRef.current(inc.id);
+      };
+      el.addEventListener("click", onMarkerClick);
       const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
         .setLngLat([inc.lng, inc.lat])
         .addTo(map);
       markersRef.current.push(marker);
     }
-  }, [displayedIncidents, mapReady]);
+  }, [displayedIncidents, mapReady, routeFocusedIncidentId]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -827,31 +913,52 @@ export default function MapPage() {
   }, [mapCenter, loadIncidents]);
 
   const routeFitPadding = useMemo<mapboxgl.PaddingOptions>(() => {
+    const incidentOpen = mapActionMode === "route" && !!routeFocusedIncidentId;
+    const detailSide = 408;
+    const padLeftForIncident = incidentOpen && routeIncidentDetailDock === "left" ? detailSide : 0;
+    const padRightForIncident = incidentOpen && routeIncidentDetailDock === "right" ? detailSide : 0;
+
+    if (!routePanelExpanded) {
+      return {
+        top: 96,
+        right: 72 + padRightForIncident,
+        bottom: 140,
+        left: 72 + padLeftForIncident,
+      };
+    }
     const sidePanelWidth = Math.round(Math.min(Math.max(viewportSize.width * 0.4, 340), 580));
     const mobilePanelHeight = Math.round(Math.min(Math.max(viewportSize.height * 0.4, 220), 420));
     if (routePanelDock === "bottom") {
       return {
         top: 96,
-        right: 72,
+        right: 72 + padRightForIncident,
         bottom: Math.max(170, mobilePanelHeight + 16),
-        left: 72,
+        left: 72 + padLeftForIncident,
       };
     }
     if (routePanelDock === "left") {
       return {
         top: 96,
-        right: 104,
+        right: 104 + padRightForIncident,
         bottom: 124,
-        left: sidePanelWidth + 44,
+        left: sidePanelWidth + 44 + padLeftForIncident,
       };
     }
     return {
       top: 96,
-      right: sidePanelWidth + 44,
+      right: sidePanelWidth + 44 + padRightForIncident,
       bottom: 124,
-      left: 104,
+      left: 104 + padLeftForIncident,
     };
-  }, [routePanelDock, viewportSize.height, viewportSize.width]);
+  }, [
+    mapActionMode,
+    routeFocusedIncidentId,
+    routeIncidentDetailDock,
+    routePanelDock,
+    routePanelExpanded,
+    viewportSize.height,
+    viewportSize.width,
+  ]);
 
   const fitRouteInVisibleViewport = useCallback(
     (route: RouteOption, durationMs: number) => {
@@ -892,37 +999,67 @@ export default function MapPage() {
     const start: [number, number] = [routeStart.lng, routeStart.lat];
     const end: [number, number] = [routeEnd.lng, routeEnd.lat];
 
-    setRouteLoading(true);
-    try {
-      const baseRoutes =
-        routeTravelMode === "walking"
-          ? buildWalkingRouteCandidates(start, end)
-          : buildBusRouteCandidatesFromGeoJson({
-              start,
-              end,
-              geojson: transportGeoJson ?? { type: "FeatureCollection", features: [] },
-              routeIndexByGeometryRef: geometryIndex.by_geometry_ref ?? {},
-              limit: 3,
-            });
+    void (async () => {
+      setRouteLoading(true);
+      try {
+        let baseRoutes: RouteOption[];
 
-      if (baseRoutes.length === 0) {
-        setRouteOptions([]);
+        if (routeTravelMode === "walking") {
+          const mapboxRoutes = await fetchWalkingRoutesFromMapbox(token, start, end);
+          if (mapboxRoutes.length > 0) {
+            // Only Mapbox walking geometry follows the pedestrian network; chord synthetics cut through buildings.
+            baseRoutes = mapboxRoutes;
+          } else {
+            baseRoutes = buildWalkingRouteCandidates(start, end);
+            if (!token) {
+              setToast({
+                message: "Add NEXT_PUBLIC_MAPBOX_TOKEN for street-accurate walking routes.",
+                variant: "error",
+              });
+            } else {
+              setToast({
+                message: "Walking directions unavailable; showing approximate paths.",
+                variant: "error",
+              });
+            }
+          }
+        } else {
+          baseRoutes = buildBusRouteCandidatesFromGeoJson({
+            start,
+            end,
+            geojson: transportGeoJson ?? { type: "FeatureCollection", features: [] },
+            routeIndexByGeometryRef: geometryIndex.by_geometry_ref ?? {},
+            limit: ROUTE_CANDIDATE_LIMIT,
+          });
+        }
+
+        if (baseRoutes.length === 0) {
+          setRouteOptions([]);
+          setSelectedRouteId(null);
+          setToast({ message: "No route found with current inputs.", variant: "error" });
+          return;
+        }
+
+        const ranked = enrichAndRankRoutes({
+          routes: baseRoutes,
+          incidents,
+          radiusMeters: 900,
+        });
+        setRouteOptions(ranked);
         setSelectedRouteId(null);
-        setToast({ message: "No route found with current inputs.", variant: "error" });
-        return;
+      } finally {
+        setRouteLoading(false);
       }
-
-      const ranked = enrichAndRankRoutes({
-        routes: baseRoutes,
-        incidents,
-        radiusMeters: 900,
-      });
-      setRouteOptions(ranked);
-      setSelectedRouteId(null);
-    } finally {
-      setRouteLoading(false);
-    }
-  }, [routeStart, routeEnd, routeTravelMode, transportGeoJson, geometryIndex.by_geometry_ref, incidents]);
+    })();
+  }, [
+    routeStart,
+    routeEnd,
+    routeTravelMode,
+    transportGeoJson,
+    geometryIndex.by_geometry_ref,
+    incidents,
+    token,
+  ]);
 
   const handleSelectRoute = useCallback(
     (routeId: string) => {
@@ -972,7 +1109,15 @@ export default function MapPage() {
   useEffect(() => {
     if (!mapReady || mapActionMode !== "route" || !selectedRoute) return;
     fitRouteInVisibleViewport(selectedRoute, 500);
-  }, [fitRouteInVisibleViewport, mapActionMode, mapReady, routePanelDock, selectedRoute, viewportSize]);
+  }, [
+    fitRouteInVisibleViewport,
+    mapActionMode,
+    mapReady,
+    routePanelDock,
+    routePanelExpanded,
+    selectedRoute,
+    viewportSize,
+  ]);
 
   const startMarkerContract = useMemo<RouteEndpointMarkerContract>(
     () => ({
@@ -1067,6 +1212,7 @@ export default function MapPage() {
 
   const openRoutePanel = () => {
     enterRouteMode();
+    setRoutePanelExpanded(true);
     setSheetOpen(false);
     setChangeLocationOpen(false);
     setPinAdjustingMap(false);
@@ -1128,6 +1274,8 @@ export default function MapPage() {
 
       <RoutePlanningPanel
         open={mapActionMode === "route"}
+        expanded={routePanelExpanded}
+        onExpandedChange={setRoutePanelExpanded}
         dock={routePanelDock}
         mapboxToken={token}
         proximity={geocoderProximity}
@@ -1157,6 +1305,15 @@ export default function MapPage() {
         onSelectRoute={handleSelectRoute}
         startMarker={startMarkerContract}
         endMarker={endMarkerContract}
+        focusedRouteIncidentId={routeFocusedIncidentId}
+        onRouteIncidentFocus={(id) => setRouteFocusedIncidentId(id)}
+      />
+
+      <RouteIncidentDetailPanel
+        open={mapActionMode === "route" && !!routeFocusedIncident}
+        dock={routeIncidentDetailDock}
+        incident={routeFocusedIncident}
+        onClose={() => setRouteFocusedIncidentId(null)}
       />
 
       <PeerWalkPanelPlaceholder open={mapActionMode === "peerWalkFuture"} />

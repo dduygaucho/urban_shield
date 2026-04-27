@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { RouteOption } from "@/lib/routing/contracts";
+import { routeOptionFooterModeLabel } from "@/lib/routing/transitDisplay";
 
 function formatDistance(meters: number): string {
   if (meters >= 1000) return `${(meters / 1000).toFixed(1)} km`;
@@ -24,9 +25,11 @@ export type RouteSegmentWalkingOnlySummary = {
   }>;
 };
 
-/** Display-only: bus leg plus final walk to destination (e.g. home). */
+/** Display-only: transit leg plus final walk to destination (e.g. home). */
 export type RouteSegmentBusPlusFinalWalkSummary = {
   kind: "bus_plus_final_walk_home";
+  /** Row heading: Tram / Bus / Train / Transit fallback. */
+  transitLegShortLabel: string;
   busSummary: string;
   finalWalkHome: {
     label?: string;
@@ -46,6 +49,9 @@ export type RouteOptionCardProps = {
   onSelect: () => void;
   /** When set, renders segment summary scaffold (walking-only or bus + final walk). */
   segmentSummary?: RouteSegmentSummaryDisplay;
+  /** Route planning: highlight & focus incident row when inspecting on the map / detail panel. */
+  focusedIncidentId?: string | null;
+  onIncidentFocus?: (incidentId: string) => void;
 };
 
 function SegmentSummaryBlock({ summary }: { summary: RouteSegmentSummaryDisplay }) {
@@ -71,7 +77,7 @@ function SegmentSummaryBlock({ summary }: { summary: RouteSegmentSummaryDisplay 
       <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Segments</p>
       <div className="mt-1 space-y-1 text-xs text-slate-700">
         <div className="flex flex-wrap items-baseline gap-x-2">
-          <span className="font-medium text-slate-800">Bus</span>
+          <span className="font-medium text-slate-800">{summary.transitLegShortLabel}</span>
           <span>{summary.busSummary}</span>
         </div>
         <div className="flex flex-wrap items-baseline gap-x-2 border-t border-slate-200/80 pt-1">
@@ -88,7 +94,14 @@ function SegmentSummaryBlock({ summary }: { summary: RouteSegmentSummaryDisplay 
   );
 }
 
-export function RouteOptionCard({ option, selected, onSelect, segmentSummary }: RouteOptionCardProps) {
+export function RouteOptionCard({
+  option,
+  selected,
+  onSelect,
+  segmentSummary,
+  focusedIncidentId,
+  onIncidentFocus,
+}: RouteOptionCardProps) {
   const [expanded, setExpanded] = useState(false);
   const topIncidents = useMemo(() => option.incidents.slice(0, 8), [option.incidents]);
 
@@ -105,7 +118,8 @@ export function RouteOptionCard({ option, selected, onSelect, segmentSummary }: 
               #{option.safetyRank} {option.label}
             </p>
             <p className="mt-1 text-xs text-slate-600">
-              {formatDistance(option.distanceMeters)} • {option.durationMinutes} min • {option.mode}
+              {formatDistance(option.distanceMeters)} • {option.durationMinutes} min •{" "}
+              {routeOptionFooterModeLabel(option)}
             </p>
           </div>
           <div className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-200">
@@ -132,15 +146,29 @@ export function RouteOptionCard({ option, selected, onSelect, segmentSummary }: 
           {topIncidents.length === 0 ? (
             <li className="text-xs text-slate-500">No nearby incidents found for this route.</li>
           ) : (
-            topIncidents.map((incident) => (
-              <li key={incident.id} className="mb-2 rounded-lg bg-white p-2 last:mb-0">
-                <p className="text-xs font-semibold text-slate-900">{incident.type}</p>
-                <p className="mt-0.5 text-xs text-slate-700">{incident.description}</p>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  {formatRecordedTime(incident.timestamp)} • {incident.source}
-                </p>
-              </li>
-            ))
+            topIncidents.map((incident) => {
+              const isFocused = focusedIncidentId === incident.id;
+              return (
+                <li key={incident.id} className="mb-2 last:mb-0">
+                  <button
+                    type="button"
+                    onClick={() => onIncidentFocus?.(incident.id)}
+                    className={`w-full rounded-lg p-2 text-left transition ${
+                      isFocused
+                        ? "bg-blue-50 ring-2 ring-blue-400"
+                        : "bg-white hover:bg-slate-100"
+                    }`}
+                    aria-pressed={isFocused}
+                  >
+                    <p className="text-xs font-semibold text-slate-900">{incident.type}</p>
+                    <p className="mt-0.5 line-clamp-3 text-xs text-slate-700">{incident.description}</p>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      {formatRecordedTime(incident.timestamp)} • {incident.source}
+                    </p>
+                  </button>
+                </li>
+              );
+            })
           )}
         </ul>
       )}

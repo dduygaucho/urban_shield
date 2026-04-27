@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { GeocoderSearch } from "@/app/map/GeocoderSearch";
 import type { RouteOption, RouteTravelMode } from "@/lib/routing/contracts";
+import { isTransportRouteType, transitKindShortLabel } from "@/lib/routing/transitDisplay";
 import { RouteOptionCard } from "@/app/map/components/RouteOptionCard";
 import type { RouteSegmentSummaryDisplay } from "@/app/map/components/RouteOptionCard";
 
@@ -31,6 +32,9 @@ export type RoutePanelDock = "left" | "right" | "bottom";
 
 type Props = {
   open: boolean;
+  /** When false, the full panel is hidden so the map is unobstructed; route mode stays active. */
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
   dock?: RoutePanelDock;
   mapboxToken: string;
   proximity?: { longitude: number; latitude: number };
@@ -58,6 +62,8 @@ type Props = {
    * If omitted, panel may still supply summaries from `option.metadata` (see `segmentSummaryFromRouteMetadata`).
    */
   segmentSummaryForOption?: (option: RouteOption) => RouteSegmentSummaryDisplay | undefined;
+  focusedRouteIncidentId?: string | null;
+  onRouteIncidentFocus?: (incidentId: string) => void;
 };
 
 function formatPoint(p: { lng: number; lat: number } | null): string {
@@ -164,8 +170,12 @@ export function segmentSummaryFromRouteMetadata(option: RouteOption): RouteSegme
       distanceMeters: typeof m.segment_final_walk_m === "number" ? m.segment_final_walk_m : undefined,
       durationMinutes: typeof m.segment_final_walk_min === "number" ? m.segment_final_walk_min : undefined,
     };
+    const rtRaw = m.route_type;
+    const transitLegShortLabel =
+      typeof rtRaw === "string" && isTransportRouteType(rtRaw) ? transitKindShortLabel(rtRaw) : "Transit";
     return {
       kind: "bus_plus_final_walk_home",
+      transitLegShortLabel,
       busSummary,
       finalWalkHome,
     };
@@ -186,6 +196,8 @@ function resolveSegmentSummary(
 export function RoutePlanningPanel(props: Props) {
   const {
     open,
+    expanded = true,
+    onExpandedChange,
     dock = "right",
     mapboxToken,
     proximity,
@@ -207,9 +219,31 @@ export function RoutePlanningPanel(props: Props) {
     startMarker: startMarkerProp,
     endMarker: endMarkerProp,
     segmentSummaryForOption,
+    focusedRouteIncidentId,
+    onRouteIncidentFocus,
   } = props;
 
   const [compact, setCompact] = useState(false);
+
+  /** Only the route-options list scrolls; avoids losing scroll when selecting a card (parent re-renders / map fit). */
+  const routeOptionsScrollRef = useRef<HTMLDivElement>(null);
+  const routeOptionsScrollTopRef = useRef(0);
+  const routeOptionsKeyRef = useRef<string>("");
+
+  const onRouteOptionsScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    routeOptionsScrollTopRef.current = e.currentTarget.scrollTop;
+  }, []);
+
+  const routeOptionsStableKey = useMemo(() => options.map((o) => o.id).join("|"), [options]);
+
+  useLayoutEffect(() => {
+    if (routeOptionsStableKey !== routeOptionsKeyRef.current) {
+      routeOptionsScrollTopRef.current = 0;
+      routeOptionsKeyRef.current = routeOptionsStableKey;
+    }
+    const el = routeOptionsScrollRef.current;
+    if (el) el.scrollTop = routeOptionsScrollTopRef.current;
+  }, [routeOptionsStableKey, selectedRouteId, compact]);
 
   const startMarkerResolved = useMemo(
     () => mergeMarkerContract(start, startMarkerProp),
@@ -226,8 +260,46 @@ export function RoutePlanningPanel(props: Props) {
 
   if (!open) return null;
 
-  const compactSummary = `${mode === "walking" ? "Walk" : "Bus"} · ${start ? "A" : "—"} → ${end ? "B" : "—"} · ${options.length} option${options.length === 1 ? "" : "s"}`;
+  const compactSummary = `${mode === "walking" ? "Walk" : "Public transport"} · ${start ? "A" : "—"} → ${end ? "B" : "—"} · ${options.length} option${options.length === 1 ? "" : "s"}`;
   const isBottomDock = dock === "bottom";
+
+  /** Collapsed strip: stays above PrimaryActionDock (bottom) or flush to side docks. */
+  const collapsedAsideClassName = isBottomDock
+    ? "pointer-events-auto absolute inset-x-0 bottom-[max(5.25rem,calc(env(safe-area-inset-bottom,0px)+4.75rem))] z-30 mx-auto flex w-[min(calc(100vw-1rem),400px)] justify-center px-2"
+    : `pointer-events-auto absolute z-30 flex max-w-[min(44vw,560px)] min-w-0 flex-col ${
+        dock === "left" ? "left-3 right-auto" : "right-3 left-auto"
+      }`;
+
+  const collapsedAsideStyle = isBottomDock
+    ? undefined
+    : {
+        top: "max(6rem, calc(env(safe-area-inset-top, 0px) + 4.5rem))",
+      };
+
+  if (!expanded) {
+    return (
+      <aside className={collapsedAsideClassName} style={collapsedAsideStyle}>
+        <button
+          type="button"
+          onClick={() => onExpandedChange?.(true)}
+          className="flex w-full max-w-full flex-col items-center gap-0.5 rounded-2xl border border-slate-200 bg-white/95 px-4 py-2 shadow-lg ring-1 ring-slate-200/70 backdrop-blur-md transition hover:bg-white sm:flex-row sm:gap-2"
+          aria-expanded="false"
+          aria-label={`Show route planning panel. ${compactSummary}`}
+        >
+          <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-900">
+            <span aria-hidden className="text-slate-500">
+              {isBottomDock ? "⌃" : dock === "left" ? "›" : "‹"}
+            </span>
+            Show route panel
+          </span>
+          <span className="max-w-[85vw] truncate text-center text-[11px] font-normal text-slate-500 sm:text-xs">
+            {compactSummary}
+          </span>
+        </button>
+      </aside>
+    );
+  }
+
   const asideClassName = isBottomDock
     ? "pointer-events-auto absolute inset-x-0 bottom-[max(0.25rem,env(safe-area-inset-bottom,0px))] z-30 mx-auto flex w-[calc(100vw-1rem)] max-w-none flex-col px-2 sm:w-[min(92vw,640px)] sm:px-0"
     : `pointer-events-auto absolute ${
@@ -253,7 +325,16 @@ export function RoutePlanningPanel(props: Props) {
             <h3 className="truncate text-base font-semibold text-slate-900">Route planning</h3>
             {compact && <p className="truncate text-xs text-slate-500">{compactSummary}</p>}
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => onExpandedChange?.(false)}
+              className="rounded-lg bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50"
+              aria-expanded={expanded}
+              title="Hide panel and show the map"
+            >
+              Hide panel
+            </button>
             <button
               type="button"
               onClick={() => setCompact((c) => !c)}
@@ -274,12 +355,14 @@ export function RoutePlanningPanel(props: Props) {
               </button>
               <button
                 type="button"
-                onClick={() => onModeChange("bus")}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
-                  mode === "bus" ? "bg-white text-slate-900 ring-1 ring-slate-200" : "text-slate-600"
+                onClick={() => onModeChange("publicTransport")}
+                className={`rounded-lg px-2 py-1.5 text-[11px] font-semibold sm:px-3 sm:text-xs ${
+                  mode === "publicTransport"
+                    ? "bg-white text-slate-900 ring-1 ring-slate-200"
+                    : "text-slate-600"
                 }`}
               >
-                Bus
+                Public transport
               </button>
             </div>
           </div>
@@ -287,90 +370,99 @@ export function RoutePlanningPanel(props: Props) {
 
         {!compact && (
           <>
-            {/* Scrollable body: keeps map usable; overscroll contained */}
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 pb-3 sm:px-4">
-              <section className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Start</p>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${uiStateChipClass(startUiState)}`}
-                  >
-                    {uiStateLabel(startUiState)}
-                  </span>
-                </div>
-                <p className="mt-1 font-mono text-xs text-slate-600">{formatPoint(start)}</p>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  Marker: {startMarkerResolved.visible ? "show" : "hide"}
-                  {startMarkerResolved.placementSource
-                    ? ` · ${startMarkerResolved.placementSource}`
-                    : ""}
-                  {startMarkerResolved.label ? ` · ${startMarkerResolved.label}` : ""}
-                </p>
-                <button
-                  type="button"
-                  onClick={onUseMapCenterForStart}
-                  className="mt-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200"
-                >
-                  Use map center
-                </button>
-                <div className="mt-2">
-                  <GeocoderSearch accessToken={mapboxToken} active onPick={onStartPick} proximity={proximity} />
-                </div>
-              </section>
-
-              <section className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Destination</p>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${uiStateChipClass(destinationUiState)}`}
-                  >
-                    {uiStateLabel(destinationUiState)}
-                  </span>
-                </div>
-                <p className="mt-1 font-mono text-xs text-slate-600">{formatPoint(end)}</p>
-                <p className="mt-1 text-[11px] text-slate-500">
-                  Marker: {endMarkerResolved.visible ? "show" : "hide"}
-                  {endMarkerResolved.placementSource ? ` · ${endMarkerResolved.placementSource}` : ""}
-                  {endMarkerResolved.label ? ` · ${endMarkerResolved.label}` : ""}
-                </p>
-                <button
-                  type="button"
-                  onClick={onUseMapCenterForEnd}
-                  className="mt-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200"
-                >
-                  Use map center
-                </button>
-                <div className="mt-2">
-                  <GeocoderSearch accessToken={mapboxToken} active onPick={onEndPick} proximity={proximity} />
-                </div>
-              </section>
-
-              <button
-                type="button"
-                disabled={!start || !end || loading}
-                onClick={onFindRoutes}
-                className="mt-3 w-full rounded-xl bg-slate-900 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {loading ? "Finding routes..." : "Find safer routes"}
-              </button>
-
-              <section className="mt-4 space-y-2 pb-1">
-                {options.length === 0 ? (
-                  <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
-                    No route options yet. Pick start and destination, then search.
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 sm:px-4">
+              <div className="shrink-0 pt-3">
+                <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Start</p>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${uiStateChipClass(startUiState)}`}
+                    >
+                      {uiStateLabel(startUiState)}
+                    </span>
+                  </div>
+                  <p className="mt-1 font-mono text-xs text-slate-600">{formatPoint(start)}</p>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Marker: {startMarkerResolved.visible ? "show" : "hide"}
+                    {startMarkerResolved.placementSource
+                      ? ` · ${startMarkerResolved.placementSource}`
+                      : ""}
+                    {startMarkerResolved.label ? ` · ${startMarkerResolved.label}` : ""}
                   </p>
-                ) : (
-                  options.map((option) => (
-                    <RouteOptionCard
-                      key={option.id}
-                      option={option}
-                      selected={selectedRouteId === option.id}
-                      onSelect={() => onSelectRoute(option.id)}
-                      segmentSummary={resolveSegmentSummary(option, segmentSummaryForOption)}
-                    />
-                  ))
-                )}
-              </section>
+                  <button
+                    type="button"
+                    onClick={onUseMapCenterForStart}
+                    className="mt-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200"
+                  >
+                    Use map center
+                  </button>
+                  <div className="mt-2">
+                    <GeocoderSearch accessToken={mapboxToken} active onPick={onStartPick} proximity={proximity} />
+                  </div>
+                </section>
+
+                <section className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Destination</p>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${uiStateChipClass(destinationUiState)}`}
+                    >
+                      {uiStateLabel(destinationUiState)}
+                    </span>
+                  </div>
+                  <p className="mt-1 font-mono text-xs text-slate-600">{formatPoint(end)}</p>
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Marker: {endMarkerResolved.visible ? "show" : "hide"}
+                    {endMarkerResolved.placementSource ? ` · ${endMarkerResolved.placementSource}` : ""}
+                    {endMarkerResolved.label ? ` · ${endMarkerResolved.label}` : ""}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={onUseMapCenterForEnd}
+                    className="mt-2 rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 ring-1 ring-slate-200"
+                  >
+                    Use map center
+                  </button>
+                  <div className="mt-2">
+                    <GeocoderSearch accessToken={mapboxToken} active onPick={onEndPick} proximity={proximity} />
+                  </div>
+                </section>
+
+                <button
+                  type="button"
+                  disabled={!start || !end || loading}
+                  onClick={onFindRoutes}
+                  className="mt-3 w-full rounded-xl bg-slate-900 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? "Finding routes..." : "Find safer routes"}
+                </button>
+              </div>
+
+              <div
+                ref={routeOptionsScrollRef}
+                onScroll={onRouteOptionsScroll}
+                className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-2"
+              >
+                <section className="space-y-2">
+                  {options.length === 0 ? (
+                    <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+                      No route options yet. Pick start and destination, then search.
+                    </p>
+                  ) : (
+                    options.map((option) => (
+                      <RouteOptionCard
+                        key={option.id}
+                        option={option}
+                        selected={selectedRouteId === option.id}
+                        onSelect={() => onSelectRoute(option.id)}
+                        segmentSummary={resolveSegmentSummary(option, segmentSummaryForOption)}
+                        focusedIncidentId={focusedRouteIncidentId}
+                        onIncidentFocus={onRouteIncidentFocus}
+                      />
+                    ))
+                  )}
+                </section>
+              </div>
             </div>
 
             <p className="shrink-0 border-t border-slate-100 px-3 py-1.5 text-[10px] leading-snug text-slate-400 sm:px-4">

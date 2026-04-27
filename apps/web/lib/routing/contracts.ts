@@ -1,4 +1,7 @@
-export type RouteTravelMode = "walking" | "bus";
+/** Max route options shown for walk and public transport planning (Mapbox + synthetic merge uses the same cap). */
+export const ROUTE_CANDIDATE_LIMIT = 5;
+
+export type RouteTravelMode = "walking" | "publicTransport";
 
 export type RouteIncidentSummary = {
   id: string;
