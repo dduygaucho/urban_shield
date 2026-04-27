@@ -40,6 +40,7 @@ Relevant settings live in `services/api/.env`:
 INGEST_ENABLED=false
 INGEST_INTERVAL_SECONDS=1800
 INGEST_RSS_FEEDS=
+INGEST_USE_DEFAULT_RSS_FEEDS=true
 INGEST_REDDIT_QUERIES=melbourne fight,melbourne robbery,geelong suspicious,melbourne attack
 LLM_VERIFIER_ENABLED=false
 LLM_API_URL=https://api.openai.com/v1/chat/completions
@@ -53,13 +54,25 @@ LLM_TIMEOUT_SECONDS=20
 
 ### RSS Feeds
 
-`INGEST_RSS_FEEDS` is comma-separated:
+By default, the crawler includes a small set of large Australian news sources:
+
+- ABC News
+- SBS News
+- 7NEWS
+- Guardian Australia
+- 9News
+- The Age
+- The Sydney Morning Herald
+
+ABC News is included through the commonly listed `https://www.abc.net.au/news/feed/2942460/rss.xml` feed, but ABC's help page says some RSS feeds are no longer updated. If it stops returning current stories, set `INGEST_USE_DEFAULT_RSS_FEEDS=false` and provide your own feed list.
+
+`INGEST_RSS_FEEDS` is comma-separated and adds extra feeds:
 
 ```env
 INGEST_RSS_FEEDS=https://example.com/local-news.rss,https://example.com/police-updates.xml
 ```
 
-Leave it empty to run Reddit-only while testing.
+Set `INGEST_USE_DEFAULT_RSS_FEEDS=false` if you want to use only the feeds listed in `INGEST_RSS_FEEDS`.
 
 ### Reddit Queries
 

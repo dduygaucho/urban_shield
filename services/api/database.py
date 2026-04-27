@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     ingest_enabled: bool = False
     ingest_interval_seconds: int = 1800
     ingest_rss_feeds: str = ""
+    ingest_use_default_rss_feeds: bool = True
     ingest_reddit_queries: str = "melbourne fight,melbourne robbery,geelong suspicious,melbourne attack"
     llm_verifier_enabled: bool = False
     llm_api_url: str = "https://api.openai.com/v1/chat/completions"

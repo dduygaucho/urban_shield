@@ -34,7 +34,16 @@ from .extract import (
 from .places import lookup_place
 
 DEFAULT_REDDIT_QUERIES = ["melbourne fight", "melbourne robbery", "geelong suspicious", "melbourne attack"]
-DEFAULT_RSS_FEEDS: list[str] = []
+DEFAULT_RSS_FEEDS = [
+    "https://www.abc.net.au/news/feed/2942460/rss.xml",
+    "https://www.sbs.com.au/news/feed",
+    "https://www.sbs.com.au/news/topic/australia/feed",
+    "https://7news.com.au/news/rss",
+    "https://www.theguardian.com/australia-news/rss",
+    "https://www.9news.com.au/rss",
+    "https://www.theage.com.au/rss/feed.xml",
+    "https://www.smh.com.au/rss/feed.xml",
+]
 USER_AGENT = "UrbanShieldIngest/0.2 (class project; scheduled news/social crawler)"
 
 
@@ -53,6 +62,14 @@ def _split_env(name: str, default: list[str]) -> list[str]:
     if not raw:
         return default
     return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def rss_feeds_from_settings() -> list[str]:
+    feeds = _split_env("INGEST_RSS_FEEDS", [])
+    if settings.ingest_use_default_rss_feeds:
+        seen = set(feeds)
+        feeds.extend(feed for feed in DEFAULT_RSS_FEEDS if feed not in seen)
+    return feeds
 
 
 def ingest_enabled() -> bool:
@@ -132,17 +149,19 @@ def store_candidate(db: Session, candidate: IncidentCandidate) -> str:
 def run_ingest_once() -> IngestResult:
     result = IngestResult()
     Base.metadata.create_all(bind=engine)
-    feeds = _split_env("INGEST_RSS_FEEDS", DEFAULT_RSS_FEEDS)
     reddit_queries = _split_env("INGEST_REDDIT_QUERIES", DEFAULT_REDDIT_QUERIES)
     with httpx.Client(headers={"User-Agent": USER_AGENT, "Accept": "application/json, application/rss+xml, */*"}) as client:
         raw_items = []
         try:
+            feeds = rss_feeds_from_settings()
             raw_items.extend(fetch_rss_items(client, feeds))
-        except Exception:
+        except Exception as e:
+            print(f"Error fetching RSS feeds: {e}")
             result.errors += 1
         try:
             raw_items.extend(fetch_reddit_items(client, reddit_queries))
-        except Exception:
+        except Exception as e:
+            print(f"Error fetching Reddit items: {e}")
             result.errors += 1
         result.fetched = len(raw_items)
 
