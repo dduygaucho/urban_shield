@@ -37,6 +37,7 @@ class Incident(Base):
     )
 
     # Optional transport route linkage (point incidents omit these).
+    # API contract restricts route_type to bus|train|tram when set; column remains plain string.
     route_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     route_external_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     route_label: Mapped[str | None] = mapped_column(String(256), nullable=True)

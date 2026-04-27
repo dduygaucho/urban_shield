@@ -125,3 +125,69 @@ export function lookupRoute(
 
   return { match: null, strategy: null };
 }
+
+export type RouteCandidateListOptions = RouteLookupOptions & {
+  /** Max suggestions (default 15). */
+  limit?: number;
+};
+
+function entryToMetadata(e: RouteIndexEntry): NormalizedRouteMetadata {
+  return {
+    route_type: e.route_type,
+    route_external_id: e.route_external_id,
+    route_label: e.route_label,
+    geometry_ref: e.geometry_ref,
+  };
+}
+
+/**
+ * Returns ranked route suggestions for autocomplete (exact → startsWith → contains), deduped by `route_external_id`.
+ */
+export function listRouteCandidates(options: RouteCandidateListOptions): NormalizedRouteMetadata[] {
+  const { query, routeType, entries, limit = 15 } = options;
+  const q = normalizeRouteQuery(query);
+  if (!q) {
+    return [];
+  }
+
+  const list = routeType ? entries.filter((e) => e.route_type === routeType) : [...entries];
+
+  const toComparable = (e: RouteIndexEntry) => ({
+    id: normalizeRouteQuery(e.route_external_id),
+    label: normalizeRouteQuery(e.route_label),
+  });
+
+  const seen = new Set<string>();
+  const out: NormalizedRouteMetadata[] = [];
+
+  const pushUnique = (e: RouteIndexEntry) => {
+    if (seen.has(e.route_external_id)) return;
+    seen.add(e.route_external_id);
+    out.push(entryToMetadata(e));
+  };
+
+  for (const e of list) {
+    const c = toComparable(e);
+    if (c.id === q || c.label === q) {
+      pushUnique(e);
+    }
+  }
+  if (out.length >= limit) return out.slice(0, limit);
+
+  for (const e of list) {
+    const c = toComparable(e);
+    if (c.id.startsWith(q) || c.label.startsWith(q)) {
+      pushUnique(e);
+    }
+  }
+  if (out.length >= limit) return out.slice(0, limit);
+
+  for (const e of list) {
+    const c = toComparable(e);
+    if (c.id.includes(q) || c.label.includes(q)) {
+      pushUnique(e);
+    }
+  }
+
+  return out.slice(0, limit);
+}

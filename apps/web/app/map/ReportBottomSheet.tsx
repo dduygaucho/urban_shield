@@ -6,6 +6,7 @@ import {
   type NormalizedRouteMetadata,
   type RouteIndexEntry,
   type TransportRouteType,
+  listRouteCandidates,
   lookupRoute,
 } from "@/lib/reporting/routeLookup";
 import {
@@ -130,11 +131,40 @@ export function ReportBottomSheet({
     }
   };
 
-  const { match: resolvedRoute, strategy: lookupStrategy } = lookupRoute({
+  /** User picked a row from the suggestion list (takes precedence over automatic first match). */
+  const [manualRoutePick, setManualRoutePick] = useState<NormalizedRouteMetadata | null>(null);
+
+  useEffect(() => {
+    setManualRoutePick(null);
+  }, [transportRouteType, reportMode]);
+
+  const { match: autoResolvedRoute, strategy: lookupStrategy } = lookupRoute({
     query: routeQuery,
     routeType: reportMode === "transport" ? transportRouteType : undefined,
     entries: reportMode === "transport" ? routeIndex : [],
   });
+
+  const resolvedRoute =
+    reportMode === "transport" ? (manualRoutePick ?? autoResolvedRoute) : null;
+
+  const routeCandidates = useMemo(
+    () =>
+      reportMode === "transport"
+        ? listRouteCandidates({
+            query: routeQuery,
+            routeType: transportRouteType,
+            entries: routeIndex,
+            limit: 15,
+          })
+        : [],
+    [reportMode, routeQuery, transportRouteType, routeIndex],
+  );
+
+  const showRouteSuggestions =
+    reportMode === "transport" &&
+    !submitting &&
+    routeQuery.trim().length > 0 &&
+    routeCandidates.length > 0;
 
   const transportFields = useMemo(
     () =>
@@ -204,15 +234,15 @@ export function ReportBottomSheet({
       />
 
       <div
-        className="fixed inset-x-0 bottom-0 z-50 max-h-[min(88vh,640px)] rounded-t-3xl bg-white shadow-[0_-8px_40px_rgba(15,23,42,0.18)] transition-transform duration-300 ease-out"
+        className="fixed inset-x-0 bottom-0 z-50 flex max-h-[min(88vh,640px)] flex-col overflow-hidden rounded-t-3xl bg-white shadow-[0_-8px_40px_rgba(15,23,42,0.18)] transition-transform duration-300 ease-out"
         role="dialog"
         aria-modal="true"
         aria-labelledby="report-sheet-title"
       >
-        <div className="mx-auto flex w-full max-w-lg flex-col px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-2">
-          <div className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-slate-200" aria-hidden />
+        <div className="mx-auto flex min-h-0 w-full max-w-lg flex-1 flex-col pt-2">
+          <div className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-slate-200 px-4" aria-hidden />
 
-          <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="mb-3 flex shrink-0 items-center justify-between gap-2 px-4">
             <h2 id="report-sheet-title" className="text-lg font-bold text-slate-900">
               Report incident
             </h2>
@@ -225,7 +255,7 @@ export function ReportBottomSheet({
             </button>
           </div>
 
-          <div className="mb-4" role="group" aria-label="What to report">
+          <div className="mb-4 shrink-0 px-4" role="group" aria-label="What to report">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">What to report</p>
             <div className="flex gap-1 rounded-2xl bg-slate-100 p-1 ring-1 ring-slate-200/80">
               <button
@@ -251,17 +281,12 @@ export function ReportBottomSheet({
             </div>
           </div>
 
-          {pinModeActive && (
-            <div className="mb-3 rounded-2xl bg-amber-50 px-3 py-2 text-center text-sm font-medium text-amber-950 ring-1 ring-amber-200">
-              Move the map to place the pin
-            </div>
-          )}
-
           {reportMode === "transport" && (
             <section
-              className="mb-4 rounded-2xl border border-slate-200/90 bg-slate-50/80 p-3 ring-1 ring-slate-200/60"
+              className="mb-2 shrink-0 overflow-visible px-4"
               aria-label="Transport route"
             >
+              <div className="rounded-2xl border border-slate-200/90 bg-slate-50/80 p-3 ring-1 ring-slate-200/60">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Transport route</p>
               <label className="mt-2 block" htmlFor="report-route-type">
                 <span className="text-xs font-medium text-slate-600">Route type</span>
@@ -279,32 +304,77 @@ export function ReportBottomSheet({
               </label>
               <label className="mt-2 block" htmlFor="report-route-query">
                 <span className="text-xs font-medium text-slate-600">Route number or name</span>
-                <input
-                  id="report-route-query"
-                  type="text"
-                  value={routeQuery}
-                  onChange={(e) => setRouteQuery(e.target.value)}
-                  disabled={submitting}
-                  placeholder="e.g. 402, 96, Craigieburn"
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-inner placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
-                  autoComplete="off"
-                />
+                <div className="relative z-[70] mt-1">
+                  <input
+                    id="report-route-query"
+                    type="text"
+                    value={routeQuery}
+                    onChange={(e) => {
+                      setManualRoutePick(null);
+                      setRouteQuery(e.target.value);
+                    }}
+                    disabled={submitting}
+                    placeholder="e.g. 402, 96, Craigieburn"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-inner placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
+                    autoComplete="off"
+                    aria-autocomplete="list"
+                    aria-expanded={showRouteSuggestions}
+                    aria-controls="report-route-suggestions"
+                  />
+                  {showRouteSuggestions ? (
+                    <ul
+                      id="report-route-suggestions"
+                      role="listbox"
+                      className="absolute left-0 right-0 z-[80] mt-1 max-h-52 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-slate-200/80"
+                    >
+                      {routeCandidates.map((c) => (
+                        <li key={c.route_external_id} role="option" aria-selected={resolvedRoute?.route_external_id === c.route_external_id}>
+                          <button
+                            type="button"
+                            className="w-full px-3 py-2.5 text-left text-sm text-slate-900 hover:bg-slate-100 active:bg-slate-200"
+                            onClick={() => {
+                              setManualRoutePick(c);
+                              setRouteQuery(c.route_label);
+                            }}
+                          >
+                            <span className="font-medium">{c.route_label}</span>
+                            <span className="ml-2 text-xs font-normal text-slate-500">({c.route_type})</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
               </label>
-              {reportMode === "transport" && routeIndex.length > 0 && (
+              {routeIndex.length > 0 && (
                 <p className="mt-2 text-xs text-slate-600" aria-live="polite">
                   {resolvedRoute ? (
                     <span>
-                      Matched: <span className="font-medium text-slate-800">{resolvedRoute.route_label}</span>{" "}
-                      {lookupStrategy ? <span className="text-slate-500">({lookupStrategy})</span> : null}
+                      Selected: <span className="font-medium text-slate-800">{resolvedRoute.route_label}</span>
+                      {manualRoutePick ? (
+                        <span className="text-slate-500"> (from list)</span>
+                      ) : lookupStrategy ? (
+                        <span className="text-slate-500"> ({lookupStrategy})</span>
+                      ) : null}
                     </span>
                   ) : (
                     <span>
-                      {routeQuery.trim() ? "No match in the route list — you can still submit the text you entered." : ""}
+                      {routeQuery.trim()
+                        ? "No match in the route list — pick a suggestion or submit the text you entered."
+                        : ""}
                     </span>
                   )}
                 </p>
               )}
+              </div>
             </section>
+          )}
+
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-2" data-report-sheet-scroll>
+          {pinModeActive && (
+            <div className="mb-3 rounded-2xl bg-amber-50 px-3 py-2 text-center text-sm font-medium text-amber-950 ring-1 ring-amber-200">
+              Move the map to place the pin
+            </div>
           )}
 
           <section className="mb-4 rounded-2xl bg-slate-50 p-3 ring-1 ring-slate-200/80">
@@ -369,7 +439,7 @@ export function ReportBottomSheet({
           <label className="mb-4 flex flex-col gap-1">
             <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Details</span>
             <textarea
-              rows={2}
+              rows={3}
               value={description}
               onChange={(e) => onDescriptionChange(e.target.value)}
               disabled={submitting}
@@ -377,12 +447,14 @@ export function ReportBottomSheet({
               className="resize-none rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-inner placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200"
             />
           </label>
+          </div>
 
+          <div className="shrink-0 border-t border-slate-200/90 bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 shadow-[0_-4px_20px_rgba(15,23,42,0.06)]">
           <button
             type="button"
             disabled={!canSubmit}
             onClick={onSubmit}
-            className="mb-1 min-h-[3.25rem] rounded-2xl bg-slate-900 py-3 text-base font-semibold text-white shadow-lg shadow-slate-900/25 transition hover:bg-slate-800 active:scale-[0.99] disabled:opacity-50"
+            className="w-full min-h-[3.25rem] rounded-2xl bg-slate-900 py-3 text-base font-semibold text-white shadow-lg shadow-slate-900/25 transition hover:bg-slate-800 active:scale-[0.99] disabled:opacity-50"
           >
             {submitting
               ? "Sending…"
@@ -392,6 +464,7 @@ export function ReportBottomSheet({
                   ? "Set route and location"
                   : "Report incident"}
           </button>
+          </div>
         </div>
       </div>
     </>
@@ -404,5 +477,10 @@ export type {
   RouteIndexEntry,
   TransportRouteType,
 } from "@/lib/reporting/routeLookup";
-export { lookupRoute, normalizeRouteQuery, TRANSPORT_ROUTE_TYPES } from "@/lib/reporting/routeLookup";
+export {
+  listRouteCandidates,
+  lookupRoute,
+  normalizeRouteQuery,
+  TRANSPORT_ROUTE_TYPES,
+} from "@/lib/reporting/routeLookup";
 export { buildTransportReportFields, type TransportReportFields } from "@/lib/reporting/transportReport";

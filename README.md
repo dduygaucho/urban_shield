@@ -11,6 +11,14 @@ Safety navigation demo: **report incidents** and **view them on a map** (Next.js
 | `apps/web/app/report/` | Report redirect / help (Person 3); reporting UX lives on `/map` |
 | `apps/web/lib/`, `apps/web/app/page.tsx`, `libs/schemas/` | Integration (Person 4) |
 | `scripts/ingest_social.py` | Optional ingestion (Person 4) |
+| `scripts/ingest/README_transport_gtfs_vic.md` | Victoria GTFS schedule ingest (scratch disk + normalized route index) |
+
+**Victoria public transport (GTFS):** large `gtfs_schedule.zip` downloads must live on scratch, not in git. Default path and full runbook: [scripts/ingest/README_transport_gtfs_vic.md](./scripts/ingest/README_transport_gtfs_vic.md). Quick start after clone:
+
+```bash
+mkdir -p /scratch/s224714149/sidework/urban_shield/transport_gtfs
+PYTHONPATH=services/api python scripts/ingest/normalize_transport_routes.py --with-fallback
+```
 
 See [FEATURE_REGISTRY.md](./FEATURE_REGISTRY.md) for branches and ownership detail.
 

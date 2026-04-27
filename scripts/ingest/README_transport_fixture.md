@@ -2,6 +2,16 @@
 
 Static data for the transport-incident UX prototype: **not** live PTV/GTFS feeds and **not** full network coverage.
 
+## Real GTFS ingestion (separate from this fixture)
+
+For **authoritative** route keys from Victoria GTFS Schedule (large zip on **scratch**, normalized JSON under `scripts/ingest/`), see **[README_transport_gtfs_vic.md](./README_transport_gtfs_vic.md)**.
+
+**Data install location (team):** large downloads go under `/scratch/s224714149/sidework/urban_shield/transport_gtfs/` by default (`TRANSPORT_DATA_ROOT` + subdir, or explicit `VIC_GTFS_DATA_DIR`). For automatic download + unzip + normalize output, run:
+
+`PYTHONPATH=services/api python scripts/ingest/run_transport_ingest_vic.py`
+
+That run also emits **route geometry** artifacts under scratch (`transport_route_geometries_vic.geojson`, index, meta) aligned to `geometry_ref` / `route_external_id` in the normalized route list. See [README_transport_gtfs_vic.md](./README_transport_gtfs_vic.md).
+
 ## Files
 
 | File | Purpose |
