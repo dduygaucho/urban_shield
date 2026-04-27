@@ -1,0 +1,77 @@
+# Deploy UrbanShield (24h demo)
+
+Two free hosts: **API (Render)** + **web (Vercel)**. Repository: **`deploy`** branch.
+
+## Prerequisites
+
+- [Mapbox](https://www.mapbox.com/) account and a **public** token (`pk.…`).
+- Large **VIC route GeoJSON** is tracked with **Git LFS** ([`.gitattributes`](../.gitattributes)). Clone and CI must fetch LFS objects (`git lfs pull`).
+
+## 1. API on Render
+
+1. [Render](https://render.com) → **New** → **Blueprint** → connect `dduygaucho/urban_shield`.
+2. Use [`render.yaml`](../render.yaml) from the repo root (default). **Branch:** `deploy`.
+3. When prompted, set **`CORS_ORIGINS`** to your future frontend URL, e.g. `https://<project>.vercel.app` (no trailing slash). You can edit this after Vercel gives you the URL.
+4. Wait for deploy; note the API URL (e.g. `https://urban-shield-api.onrender.com`).
+
+**Git LFS:** The build runs `git lfs install && git lfs pull` so `scripts/ingest/transport_route_geometries_vic.geojson` exists for `GET /data/transport_route_geometries_vic.geojson`.
+
+**SQLite:** Lives on the service disk; avoid frequent redeploys during a short demo if you care about persisted incidents.
+
+## 2. Web on Vercel
+
+1. [Vercel](https://vercel.com) → **Add New** → **Project** → import the same GitHub repo.
+2. **Root Directory:** `apps/web`.
+3. **Production Branch:** `deploy` (Project → Settings → Git).
+4. **Environment variables** (Production):
+
+| Name | Example |
+|------|---------|
+| `NEXT_PUBLIC_API_BASE_URL` | `https://urban-shield-api.onrender.com` (no trailing slash) |
+| `NEXT_PUBLIC_MAPBOX_TOKEN` | your `pk.…` token |
+| `NEXT_PUBLIC_MAP_DEFAULT` | `melbourne` or `geelong` (optional) |
+
+5. Enable **Git LFS** if the Vercel project supports it (so `scripts/ingest` JSON imports resolve on build). If the build fails missing files, run ingest locally, commit artifacts to `deploy`, or copy the required JSON into the branch.
+
+**Optional:** `NEXT_PUBLIC_VIC_TRANSPORT_ROUTE_GEOJSON_URL` to bypass the API and load GeoJSON from a CDN (full URL).
+
+## 3. CORS (API)
+
+[`CORS_ORIGINS`](../services/api/database.py) must list the **exact** browser origin for the web app (scheme + host, no path). Example:
+
+```text
+CORS_ORIGINS=https://urban-shield-xxxxx.vercel.app
+```
+
+Update in **Render → Service → Environment** after you know the Vercel URL; **redeploy** the API or let it restart.
+
+## 4. Smoke checks
+
+After both are live:
+
+```bash
+# Replace with your API URL
+curl -sS "https://YOUR-API.onrender.com/health"
+curl -sS -o /dev/null -w "%{http_code}\\n" --range 0-0 "https://YOUR-API.onrender.com/data/transport_route_geometries_vic.geojson"
+```
+
+Expect **`200`** for `/health`. For GeoJSON use a **small ranged GET** (`206`/`200`), not **`HEAD`** (FastAPI **`FileResponse`** may respond with **405** to `HEAD`).
+
+Local smoke (API on port 8000):
+
+```bash
+./scripts/smoke_deploy_local.sh
+# or:
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000 ./scripts/smoke_deploy_local.sh
+```
+
+Then open `https://YOUR-VERCEL-URL/map`, submit a test report, refresh.
+
+## Troubleshooting
+
+| Issue | Action |
+|-------|--------|
+| GeoJSON **404** on API | Confirm LFS file present on Render build logs; set `TRANSPORT_ROUTE_GEOJSON_PATH` to an absolute path if layout differs. |
+| Next **build** fails missing `scripts/ingest/*.json` | Commit those files on `deploy` or run ingest in CI before `npm run build`. |
+| Browser **CORS** errors | Fix `CORS_ORIGINS` to match the Vercel origin exactly (including `https`). |
+| Mapbox blank | Use a **public** `pk.` token; check Mapbox URL restrictions for your domain. |

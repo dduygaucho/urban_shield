@@ -2,6 +2,8 @@
 
 Safety navigation demo: **report incidents** and **view them on a map** (Next.js + FastAPI + SQLite).
 
+**Deploy (e.g. Vercel + Render, `deploy` branch):** [docs/DEPLOY.md](./docs/DEPLOY.md) and [render.yaml](./render.yaml).
+
 ## Repo layout
 
 | Path | Owner (parallel work) |

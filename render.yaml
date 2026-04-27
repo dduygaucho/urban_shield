@@ -1,0 +1,21 @@
+# Render Blueprint: FastAPI only (deploy Next.js separately, e.g. Vercel).
+# Dashboard: New > Blueprint > connect repo > select branch `deploy`.
+# After deploy: set CORS_ORIGINS to your frontend origin (see docs/DEPLOY.md).
+
+services:
+  - type: web
+    name: urban-shield-api
+    runtime: python
+    plan: free
+    region: singapore
+    branch: deploy
+    rootDir: services/api
+    buildCommand: cd ../.. && git lfs install && git lfs pull && cd services/api && pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      # Comma-separated; set in dashboard to your deployed web app origin(s)
+      - key: CORS_ORIGINS
+        sync: false
