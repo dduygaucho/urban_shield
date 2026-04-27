@@ -221,6 +221,22 @@ export function ReportBottomSheet({
     transportFields,
   ]);
 
+  /** Keyboard close: Escape dismisses the sheet (including pin-adjust thin bar). */
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") {
+        return;
+      }
+      e.preventDefault();
+      onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
   const transportFormReady =
     reportMode !== "transport" ||
     resolvedRoute != null ||
@@ -253,6 +269,7 @@ export function ReportBottomSheet({
             ? "max-h-[min(40vh,280px)] overflow-hidden"
             : `max-h-[min(88vh,640px)] ${locationMode === "search" ? "overflow-visible" : "overflow-hidden"}`
         }`}
+        data-report-sheet-panel
         role="dialog"
         aria-modal="true"
         aria-labelledby="report-sheet-title"
