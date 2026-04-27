@@ -1,7 +1,7 @@
 """SQLAlchemy ORM models for incidents."""
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Float, String, Text
+from sqlalchemy import DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from database import Base
@@ -24,6 +24,13 @@ class Incident(Base):
     )
     duration_class: Mapped[str] = mapped_column(String(16), nullable=False, default="short_term")
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source_category: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_fingerprint: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    verification_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    verification_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    evidence_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    evidence_sources: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Compatibility fields retained for the existing map UI and fixed demo API.
     category: Mapped[str] = mapped_column(String(32), nullable=False)

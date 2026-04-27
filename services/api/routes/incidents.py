@@ -70,6 +70,13 @@ LEGACY_TO_CANONICAL_COLUMNS = {
     "timestamp": ("DATETIME", "created_at"),
     "duration_class": ("VARCHAR(16)", "'short_term'"),
     "confidence": ("FLOAT", "NULL"),
+    "source_category": ("VARCHAR(32)", "NULL"),
+    "source_url": ("TEXT", "NULL"),
+    "source_fingerprint": ("VARCHAR(128)", "NULL"),
+    "verification_status": ("VARCHAR(32)", "NULL"),
+    "verification_reason": ("TEXT", "NULL"),
+    "evidence_count": ("INTEGER", "1"),
+    "evidence_sources": ("TEXT", "NULL"),
     # Optional transport metadata (nullable for legacy point-only rows).
     "route_type": ("VARCHAR(64)", "NULL"),
     "route_external_id": ("VARCHAR(128)", "NULL"),
@@ -125,6 +132,12 @@ class IncidentOut(BaseModel):
     timestamp: datetime
     duration_class: DurationClass
     confidence: float | None = None
+    source_category: str | None = None
+    source_url: str | None = None
+    verification_status: str | None = None
+    verification_reason: str | None = None
+    evidence_count: int = 1
+    evidence_sources: str | None = None
 
     # Compatibility fields for current map UI consumers.
     category: str
