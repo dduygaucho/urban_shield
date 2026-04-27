@@ -16,7 +16,8 @@ import {
 } from "@/lib/mapLayers/transportRouteLayer";
 import type { NormalizedRouteMetadata, RouteIndexEntry, TransportRouteType } from "@/lib/reporting/routeLookup";
 import type { TransportReportFields } from "@/lib/reporting/transportReport";
-import { colorForCategory } from "./mapColors";
+import { createIncidentMarkerElement } from "./incidentMarker";
+import { buildRouteLineColorMatchExpression } from "./routeHighlightPalette";
 import {
   CENTER_GEELONG,
   DEFAULT_CENTER_MELBOURNE,
@@ -147,6 +148,8 @@ export default function MapPage() {
   const [transportGeoReady, setTransportGeoReady] = useState(false);
 
   const [sheetOpen, setSheetOpen] = useState(false);
+  /** Full sheet hidden so the map receives pan/zoom while placing the pin. */
+  const [pinAdjustingMap, setPinAdjustingMap] = useState(false);
   const [changeLocationOpen, setChangeLocationOpen] = useState(false);
   const [locationMode, setLocationMode] = useState<LocationMode>("current");
   const [pickedLabel, setPickedLabel] = useState<string | null>(null);
@@ -164,7 +167,17 @@ export default function MapPage() {
     null,
   );
 
+  /** Map viewport center for geocoder proximity (updates on pan/zoom). */
+  const [geocoderBias, setGeocoderBias] = useState<{ longitude: number; latitude: number } | null>(
+    null,
+  );
+
   const token = useMemo(() => process.env.NEXT_PUBLIC_MAPBOX_TOKEN?.trim() ?? "", []);
+
+  const geocoderProximity = useMemo(() => {
+    if (geocoderBias) return geocoderBias;
+    return { longitude: mapCenter[0], latitude: mapCenter[1] };
+  }, [geocoderBias, mapCenter]);
 
   const routeIndex = useMemo((): readonly RouteIndexEntry[] => {
     const doc = vicRoutesNormalized as VicNormalizedDoc;
@@ -268,12 +281,21 @@ export default function MapPage() {
       map.resize();
       setMapZoom(map.getZoom());
       setMapReady(true);
+      const c = map.getCenter();
+      setGeocoderBias({ longitude: c.lng, latitude: c.lat });
     });
+
+    const onMoveEndBias = () => {
+      const c = map.getCenter();
+      setGeocoderBias({ longitude: c.lng, latitude: c.lat });
+    };
+    map.on("moveend", onMoveEndBias);
 
     return () => {
       setMapReady(false);
       map.off("zoom", onZoomMove);
       map.off("moveend", onZoomMove);
+      map.off("moveend", onMoveEndBias);
       map.remove();
       mapRef.current = null;
       geometryRefPresentRef.current = new Set();
@@ -436,8 +458,8 @@ export default function MapPage() {
       const m = toMapLayerIncident(inc);
       const model = buildDangerZoneRenderModel(m, z);
       const radiusPx = Math.max(
-        4,
-        Math.min(120, metersToPixelsAtLatitude(model.style.radiusMeters, model.lat, z)),
+        10,
+        Math.min(220, metersToPixelsAtLatitude(model.style.radiusMeters, model.lat, z)),
       );
       features.push({
         type: "Feature",
@@ -469,10 +491,9 @@ export default function MapPage() {
     const refs = buildHighlightGeometryRefs(incidents, geometryIndex, present, previewRef);
     map.setFilter(LAYER_TRANSPORT, ["in", ["get", "geometry_ref"], ["literal", refs]]);
 
-    /** Per-feature styling proxy: pick first incident matching ref for line width/color. */
+    /** Line width/opacity: max across highlighted routes; color is per-geometry_ref via `match`. */
     if (refs.length === 0) return;
     let lineWidth = 4;
-    let lineColor = "#d97706";
     let lineOpacity = 0.88;
     for (const ref of refs) {
       const inc = incidents.find((i) => resolveGeometryRefForIncident(i, geometryIndex) === ref);
@@ -480,10 +501,8 @@ export default function MapPage() {
         const rm = buildTransportRouteRenderModel(toMapLayerIncident(inc), mapZoom);
         if (rm) {
           lineWidth = Math.max(lineWidth, rm.style.lineWidth);
-          lineColor = rm.style.lineColor;
-          lineOpacity = rm.style.lineOpacity;
+          lineOpacity = Math.max(lineOpacity, rm.style.lineOpacity);
         }
-        break;
       }
     }
     if (previewRef && refs.includes(previewRef)) {
@@ -502,13 +521,17 @@ export default function MapPage() {
       };
       const rm = buildTransportRouteRenderModel(previewInc, mapZoom);
       if (rm) {
-        lineWidth = rm.style.lineWidth;
-        lineColor = rm.style.lineColor;
-        lineOpacity = rm.style.lineOpacity;
+        lineWidth = Math.max(lineWidth, rm.style.lineWidth);
+        lineOpacity = Math.max(lineOpacity, rm.style.lineOpacity);
       }
     }
+    const defaultLineColor = "#94a3b8";
     map.setPaintProperty(LAYER_TRANSPORT, "line-width", lineWidth);
-    map.setPaintProperty(LAYER_TRANSPORT, "line-color", lineColor);
+    map.setPaintProperty(
+      LAYER_TRANSPORT,
+      "line-color",
+      buildRouteLineColorMatchExpression(refs, defaultLineColor) as mapboxgl.ExpressionSpecification,
+    );
     map.setPaintProperty(LAYER_TRANSPORT, "line-opacity", lineOpacity);
   }, [
     incidents,
@@ -529,16 +552,10 @@ export default function MapPage() {
 
     clearMarkers();
     for (const inc of incidents) {
-      const el = document.createElement("div");
-      el.style.width = "14px";
-      el.style.height = "14px";
-      el.style.borderRadius = "9999px";
-      el.style.background = colorForCategory(inc.category);
-      el.style.border = "2px solid white";
-      el.style.boxShadow = "0 1px 4px rgba(0,0,0,0.35)";
-      el.title = `${inc.category}: ${inc.description}`;
-
-      const marker = new mapboxgl.Marker({ element: el }).setLngLat([inc.lng, inc.lat]).addTo(map);
+      const el = createIncidentMarkerElement(inc.category, inc.description);
+      const marker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+        .setLngLat([inc.lng, inc.lat])
+        .addTo(map);
       markersRef.current.push(marker);
     }
   }, [incidents, mapReady]);
@@ -635,6 +652,7 @@ export default function MapPage() {
       setToast({ message: "Incident reported", variant: "success" });
       setSheetOpen(false);
       setChangeLocationOpen(false);
+      setPinAdjustingMap(false);
       setDescription("");
       setLocationMode("current");
       setPickedLabel(null);
@@ -661,6 +679,7 @@ export default function MapPage() {
 
   const openReportSheet = () => {
     setChangeLocationOpen(false);
+    setPinAdjustingMap(false);
     setLocationMode("current");
     setPickedLabel(null);
     setSheetOpen(true);
@@ -724,11 +743,15 @@ export default function MapPage() {
           onClose={() => {
             setSheetOpen(false);
             setChangeLocationOpen(false);
+            setPinAdjustingMap(false);
             resetTransportForm();
           }}
           locationMode={locationMode}
           onLocationModeChange={(m) => {
             setLocationMode(m);
+            if (m === "search" || m === "current") {
+              setPinAdjustingMap(false);
+            }
             if (m === "pin") {
               setPickedLabel(null);
               const c = mapRef.current?.getCenter();
@@ -756,6 +779,10 @@ export default function MapPage() {
           onSubmit={() => void handleSubmitReport()}
           onUseCurrentLocation={refreshReportingFromGps}
           pinModeActive={sheetOpen && locationMode === "pin"}
+          pinAdjustingMap={pinAdjustingMap}
+          onEnterPinAdjustMode={() => setPinAdjustingMap(true)}
+          onPinAdjustDone={() => setPinAdjustingMap(false)}
+          geocoderProximity={geocoderProximity}
           reportMode={reportMode}
           onReportModeChange={setReportMode}
           transportRouteType={transportRouteType}

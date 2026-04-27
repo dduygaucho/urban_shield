@@ -52,6 +52,11 @@ export function ReportBottomSheet({
   onSubmit,
   onUseCurrentLocation,
   pinModeActive,
+  /** When true, sheet is a thin bar so the map can be panned; backdrop does not block the map. */
+  pinAdjustingMap = false,
+  onEnterPinAdjustMode,
+  onPinAdjustDone,
+  geocoderProximity,
   reportMode: reportModeProp,
   onReportModeChange,
   transportRouteType: transportRouteTypeProp,
@@ -83,6 +88,10 @@ export function ReportBottomSheet({
   onSubmit: () => void;
   onUseCurrentLocation: () => void;
   pinModeActive: boolean;
+  pinAdjustingMap?: boolean;
+  onEnterPinAdjustMode?: () => void;
+  onPinAdjustDone?: () => void;
+  geocoderProximity?: { longitude: number; latitude: number };
   reportMode?: ReportMode;
   onReportModeChange?: (m: ReportMode) => void;
   transportRouteType?: TransportRouteType;
@@ -229,17 +238,62 @@ export function ReportBottomSheet({
       <button
         type="button"
         aria-label="Close report"
-        className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[1px] transition-opacity duration-200"
-        onClick={onClose}
+        className={`fixed inset-0 z-40 transition-opacity duration-200 ${
+          pinAdjustingMap
+            ? "pointer-events-none bg-slate-900/10"
+            : "bg-slate-900/40 backdrop-blur-[1px]"
+        }`}
+        tabIndex={pinAdjustingMap ? -1 : 0}
+        onClick={pinAdjustingMap ? undefined : onClose}
       />
 
       <div
-        className="fixed inset-x-0 bottom-0 z-50 flex max-h-[min(88vh,640px)] flex-col overflow-hidden rounded-t-3xl bg-white shadow-[0_-8px_40px_rgba(15,23,42,0.18)] transition-transform duration-300 ease-out"
+        className={`fixed inset-x-0 bottom-0 z-50 flex flex-col rounded-t-3xl bg-white shadow-[0_-8px_40px_rgba(15,23,42,0.18)] transition-transform duration-300 ease-out ${
+          pinAdjustingMap
+            ? "max-h-[min(40vh,280px)] overflow-hidden"
+            : `max-h-[min(88vh,640px)] ${locationMode === "search" ? "overflow-visible" : "overflow-hidden"}`
+        }`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="report-sheet-title"
       >
         <div className="mx-auto flex min-h-0 w-full max-w-lg flex-1 flex-col pt-2">
+          {pinAdjustingMap ? (
+            <div className="flex flex-col gap-3 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-1">
+              <div className="mx-auto h-1.5 w-10 shrink-0 rounded-full bg-slate-200" aria-hidden />
+              <h2 id="report-sheet-title" className="text-lg font-bold text-slate-900">
+                Place the pin
+              </h2>
+              <p className="text-sm text-slate-600">
+                Drag and zoom the map so the red pin marks where you want to report. The rest of the form
+                stays saved — tap continue when you are done.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onLocationModeChange("current");
+                    onUseCurrentLocation();
+                    onPinAdjustDone?.();
+                  }}
+                  className="min-h-[2.75rem] flex-1 rounded-xl bg-slate-100 px-3 text-sm font-semibold text-slate-800 ring-1 ring-slate-200 hover:bg-slate-200"
+                >
+                  Use GPS instead
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onPinAdjustDone?.()}
+                  className="min-h-[2.75rem] flex-1 rounded-xl bg-slate-900 px-3 text-sm font-semibold text-white shadow-md hover:bg-slate-800"
+                >
+                  Continue report
+                </button>
+              </div>
+              <button type="button" onClick={onClose} className="text-center text-sm font-medium text-slate-500 hover:text-slate-800">
+                Cancel and close
+              </button>
+            </div>
+          ) : (
+            <>
           <div className="mx-auto mb-2 h-1.5 w-10 shrink-0 rounded-full bg-slate-200 px-4" aria-hidden />
 
           <div className="mb-3 flex shrink-0 items-center justify-between gap-2 px-4">
@@ -370,10 +424,23 @@ export function ReportBottomSheet({
             </section>
           )}
 
+          {locationMode === "search" && (
+            <div className="relative z-[55] shrink-0 overflow-visible px-4 pb-2">
+              <p className="mb-1 text-xs font-medium text-slate-500">Search (Australia)</p>
+              <GeocoderSearch
+                accessToken={mapboxToken}
+                active
+                onPick={onGeocoderPick}
+                proximity={geocoderProximity}
+              />
+            </div>
+          )}
+
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 pb-2" data-report-sheet-scroll>
-          {pinModeActive && (
+          {pinModeActive && !pinAdjustingMap && (
             <div className="mb-3 rounded-2xl bg-amber-50 px-3 py-2 text-center text-sm font-medium text-amber-950 ring-1 ring-amber-200">
-              Move the map to place the pin
+              Move the map to place the pin, or open <span className="font-semibold">Change location</span> to adjust
+              again.
             </div>
           )}
 
@@ -406,6 +473,7 @@ export function ReportBottomSheet({
                   onClick={() => {
                     onLocationModeChange("pin");
                     onToggleChangeLocation();
+                    onEnterPinAdjustMode?.();
                   }}
                   className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 text-left text-sm font-medium text-slate-800 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
                 >
@@ -424,11 +492,6 @@ export function ReportBottomSheet({
               </div>
             )}
 
-            {locationMode === "search" && (
-              <div className="mt-3">
-                <GeocoderSearch accessToken={mapboxToken} active onPick={onGeocoderPick} />
-              </div>
-            )}
           </section>
 
           <section className="mb-3">
@@ -465,6 +528,8 @@ export function ReportBottomSheet({
                   : "Report incident"}
           </button>
           </div>
+            </>
+          )}
         </div>
       </div>
     </>

@@ -48,9 +48,9 @@ export type DangerZoneRenderModel = {
 };
 
 const BASE_RADIUS_M: Record<DangerSeverity, number> = {
-  high: 130,
-  medium: 90,
-  low: 55,
+  high: 210,
+  medium: 150,
+  low: 95,
 };
 
 /** Prototype red scale; fill uses alpha via fillOpacity. */
@@ -64,17 +64,17 @@ type SeverityStyleBase = {
 };
 
 const SEVERITY_BASE: Record<DangerSeverity, SeverityStyleBase> = {
-  high: { fillOpacity: 0.38, strokeOpacity: 0.95, strokeWidth: 2.4 },
-  medium: { fillOpacity: 0.28, strokeOpacity: 0.8, strokeWidth: 2.0 },
-  low: { fillOpacity: 0.18, strokeOpacity: 0.65, strokeWidth: 1.6 },
+  high: { fillOpacity: 0.38, strokeOpacity: 0.95, strokeWidth: 3.0 },
+  medium: { fillOpacity: 0.28, strokeOpacity: 0.8, strokeWidth: 2.5 },
+  low: { fillOpacity: 0.18, strokeOpacity: 0.65, strokeWidth: 2.0 },
 };
 
 const BAND_RADIUS_FACTOR: Record<ZoomBand, number> = {
-  /** Slightly larger soft zones when zoomed out. */
-  overview: 1.22,
-  normal: 1.05,
-  /** Tighter at street level. */
-  detail: 1.0,
+  /** Larger soft zones when zoomed out so radar reads clearly. */
+  overview: 1.38,
+  normal: 1.12,
+  /** Street level: still readable without dominating. */
+  detail: 1.05,
 };
 
 const BAND_OPACITY_FACTOR: Record<ZoomBand, number> = {
