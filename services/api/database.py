@@ -17,17 +17,22 @@ class Settings(BaseSettings):
         extra="ignore",
     )
     database_url: str = "sqlite:///./urban_shield.db"
+    cors_origins: str = ""
+    ingest_enabled: bool = False
+    ingest_interval_seconds: int = 1800
+    ingest_rss_feeds: str = ""
+    ingest_reddit_queries: str = "melbourne fight,melbourne robbery,geelong suspicious,melbourne attack"
 
 
-_settings = Settings()
+settings = Settings()
 # Resolve SQLite path relative to this package directory so uvicorn cwd varies safely
-if _settings.database_url.startswith("sqlite:///./"):
-    db_name = _settings.database_url.replace("sqlite:///./", "", 1)
+if settings.database_url.startswith("sqlite:///./"):
+    db_name = settings.database_url.replace("sqlite:///./", "", 1)
     here = Path(__file__).resolve().parent
     _db_path = here / db_name
     DATABASE_URL = f"sqlite:///{_db_path}"
 else:
-    DATABASE_URL = _settings.database_url
+    DATABASE_URL = settings.database_url
 
 engine = create_engine(
     DATABASE_URL,
