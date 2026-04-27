@@ -4,6 +4,7 @@
 .env.*.local
 apps/web/.env
 apps/web/.env.local
+apps/web/vercel.import.env
 services/api/.env
 
 # Python
