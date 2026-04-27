@@ -80,6 +80,7 @@ Then open `https://YOUR-VERCEL-URL/map`, submit a test report, refresh.
 
 | Issue | Action |
 |-------|--------|
+| **`git: 'lfs' is not a git command`** on Render | Fixed in [`render.yaml`](../render.yaml): build downloads the **Git LFS binary** before `git lfs pull`. Redeploy after pulling latest; or install `git-lfs` in a custom Dockerfile. |
 | GeoJSON **404** on API | Confirm LFS file present on Render build logs; set `TRANSPORT_ROUTE_GEOJSON_PATH` to an absolute path if layout differs. |
 | Next **build** fails missing `scripts/ingest/*.json` | Commit those files on `deploy` or run ingest in CI before `npm run build`. |
 | Browser **CORS** errors | Fix `CORS_ORIGINS` to match the Vercel origin exactly (including `https`). |

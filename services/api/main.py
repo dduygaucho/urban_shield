@@ -25,10 +25,14 @@ if _origins_env:
 else:
     _origins = ["*"]
 
+# Browsers reject Access-Control-Allow-Origin: * when allow_credentials=True.
+# Use credentials only with explicit origins (production); wildcard stays open without credentials.
+_cors_credentials = _origins != ["*"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
-    allow_credentials=True,
+    allow_credentials=_cors_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

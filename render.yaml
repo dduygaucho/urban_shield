@@ -10,7 +10,8 @@ services:
     region: singapore
     branch: main
     rootDir: services/api
-    buildCommand: cd ../.. && git lfs install && git lfs pull && cd services/api && pip install -r requirements.txt
+    # Render images do not ship `git-lfs`; download the official binary before `git lfs pull`.
+    buildCommand: cd ../.. && curl -fsSL -o /tmp/git-lfs.tgz https://github.com/git-lfs/git-lfs/releases/download/v3.6.1/git-lfs-linux-amd64-v3.6.1.tar.gz && tar xzf /tmp/git-lfs.tgz -C /tmp && /tmp/git-lfs-3.6.1/git-lfs install && /tmp/git-lfs-3.6.1/git-lfs pull && cd services/api && pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
