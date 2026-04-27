@@ -42,13 +42,14 @@ def health():
 
 
 def _transport_route_geometries_path() -> Path:
-    """Agent-F output on scratch by default; override with TRANSPORT_ROUTE_GEOJSON_PATH."""
+    """Default: repo copy at scripts/ingest/transport_route_geometries_vic.geojson (Git LFS OK).
+
+    Override with TRANSPORT_ROUTE_GEOJSON_PATH for scratch disk or other layouts.
+    """
     override = os.getenv("TRANSPORT_ROUTE_GEOJSON_PATH", "").strip()
     if override:
         return Path(override).expanduser()
-    return Path(
-        "/scratch/s224714149/sidework/urban_shield/transport_gtfs/transport_route_geometries_vic.geojson"
-    )
+    return _ROOT / "scripts" / "ingest" / "transport_route_geometries_vic.geojson"
 
 
 @app.get("/data/transport_route_geometries_vic.geojson")

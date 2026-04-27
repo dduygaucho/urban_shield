@@ -37,3 +37,6 @@ services/api/*.db
 # Generated Victoria transport route index (see scripts/ingest/README_transport_gtfs_vic.md)
 
 apps/web/lib/data
+
+# Local tooling (e.g. standalone git-lfs tarball)
+.tools/

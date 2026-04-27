@@ -103,6 +103,8 @@ PYTHONPATH=services/api python scripts/ingest/normalize_transport_routes.py --wi
 cp /scratch/s224714149/sidework/urban_shield/transport_gtfs/transport_route_geometries_vic.geojson scripts/ingest/
 ```
 
+FastAPI serves `GET /data/transport_route_geometries_vic.geojson` from **`scripts/ingest/transport_route_geometries_vic.geojson`** by default (override with `TRANSPORT_ROUTE_GEOJSON_PATH` in `services/api/.env`). For large files, use **Git LFS**: repo root `.gitattributes` tracks this path; run `git lfs install` before commit, and `git lfs pull` after clone.
+
 Normalized JSON schema:
 
 - `version`

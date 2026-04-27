@@ -1,0 +1,2 @@
+# Large VIC transport route geometry (use: git lfs install && git lfs pull after clone)
+scripts/ingest/transport_route_geometries_vic.geojson filter=lfs diff=lfs merge=lfs -text
