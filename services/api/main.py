@@ -20,18 +20,24 @@ if str(_ROOT) not in sys.path:
 app = FastAPI(title="UrbanShield API", version="0.1.0")
 
 _origins_env = settings.cors_origins.strip()
+_cors_regex = settings.cors_origin_regex.strip()
+
 if _origins_env:
-    _origins = [o.strip() for o in _origins_env.split(",") if o.strip()]
+    # Browsers send Origin without a path; trailing slashes in env break matching.
+    _origins = [o.strip().rstrip("/") for o in _origins_env.split(",") if o.strip()]
+elif _cors_regex:
+    _origins = []
 else:
     _origins = ["*"]
 
 # Browsers reject Access-Control-Allow-Origin: * when allow_credentials=True.
-# Use credentials only with explicit origins (production); wildcard stays open without credentials.
-_cors_credentials = _origins != ["*"]
+_wildcard_only = _origins == ["*"] and not _cors_regex
+_cors_credentials = not _wildcard_only
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins,
+    allow_origin_regex=_cors_regex or None,
     allow_credentials=_cors_credentials,
     allow_methods=["*"],
     allow_headers=["*"],

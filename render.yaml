@@ -17,6 +17,9 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.11.9"
-      # Comma-separated; set in dashboard to your deployed web app origin(s)
+      # Set in dashboard: production origin(s), comma-separated, no trailing slash (see docs/DEPLOY.md).
       - key: CORS_ORIGINS
+        sync: false
+      # Optional: e.g. https://.*\.vercel\.app so preview deploys get CORS without listing each URL.
+      - key: CORS_ORIGIN_REGEX
         sync: false

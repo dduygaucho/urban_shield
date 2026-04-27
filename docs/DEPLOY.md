@@ -46,13 +46,21 @@ The dashboard may auto-detect **two** services (`apps/web` + `services/api`) and
 
 ## 3. CORS (API)
 
-[`CORS_ORIGINS`](../services/api/database.py) must list the **exact** browser origin for the web app (scheme + host, no path). Example:
+[`CORS_ORIGINS`](../services/api/database.py) must match the **exact** browser `Origin` (scheme + host, no path). Trailing slashes are stripped automatically, but do not include one in Render.
 
 ```text
 CORS_ORIGINS=https://urban-shield-xxxxx.vercel.app
 ```
 
-Update in **Render → Service → Environment** after you know the Vercel URL; **redeploy** the API or let it restart.
+**Preview deployments** use a different host (e.g. `urban-shield-git-feature-user.vercel.app`). Either add each origin comma-separated in `CORS_ORIGINS`, or set **`CORS_ORIGIN_REGEX`** on Render to cover all Vercel hosts you use, for example:
+
+```text
+CORS_ORIGIN_REGEX=https://.*\.vercel\.app
+```
+
+If you use a **custom domain** for the web app, include that full origin in `CORS_ORIGINS` as well (regex above does not match arbitrary domains).
+
+Update in **Render → Service → Environment**; **Save** and **Manual Deploy** (or wait for restart) so new env vars load.
 
 ## 4. Smoke checks
 
@@ -83,5 +91,5 @@ Then open `https://YOUR-VERCEL-URL/map`, submit a test report, refresh.
 | **`git: 'lfs' is not a git command`** on Render | Fixed in [`render.yaml`](../render.yaml): build downloads the **Git LFS binary** before `git lfs pull`. Redeploy after pulling latest; or install `git-lfs` in a custom Dockerfile. |
 | GeoJSON **404** on API | Confirm LFS file present on Render build logs; set `TRANSPORT_ROUTE_GEOJSON_PATH` to an absolute path if layout differs. |
 | Next **build** fails missing `scripts/ingest/*.json` | Commit those files on `deploy` or run ingest in CI before `npm run build`. |
-| Browser **CORS** errors | Fix `CORS_ORIGINS` to match the Vercel origin exactly (including `https`). |
+| Browser **CORS** errors | `CORS_ORIGINS` must match the tab’s origin (production vs preview URL differ). Add `CORS_ORIGIN_REGEX` for `*.vercel.app` previews, or list multiple origins comma-separated. |
 | Mapbox blank | Use a **public** `pk.` token; check Mapbox URL restrictions for your domain. |

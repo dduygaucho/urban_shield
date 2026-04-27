@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     )
     database_url: str = "sqlite:///./urban_shield.db"
     cors_origins: str = ""
+    # Optional Starlette regex (e.g. https://.*\\.vercel\\.app) so preview deploys match without listing each URL.
+    cors_origin_regex: str = ""
     ingest_enabled: bool = False
     ingest_interval_seconds: int = 1800
     ingest_rss_feeds: str = ""
