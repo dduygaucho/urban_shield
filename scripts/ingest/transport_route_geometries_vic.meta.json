@@ -1,0 +1,105 @@
+{
+  "generated_at": "2026-04-27T04:05:47.912051+00:00",
+  "source": "gtfs_vic_schedule",
+  "fallback_used": false,
+  "route_count_total": 1000,
+  "geometry_count_resolved": 985,
+  "geometry_count_missing": 15,
+  "missing_geometry_examples": [
+    {
+      "route_external_id": "vic_gtfs_4_1_17_202_aus_1",
+      "geometry_ref": "geom_vic_gtfs_4_1_17_202_aus_1_v1",
+      "route_type": "bus",
+      "route_label": "202 \u2014 Yarra Bend - Melbourne University"
+    },
+    {
+      "route_external_id": "vic_gtfs_4_1_17_510_aus_1",
+      "geometry_ref": "geom_vic_gtfs_4_1_17_510_aus_1_v1",
+      "route_type": "bus",
+      "route_label": "510 \u2014 Ivanhoe Station - Essendon Station"
+    },
+    {
+      "route_external_id": "vic_gtfs_4_1_17_512_aus_1",
+      "geometry_ref": "geom_vic_gtfs_4_1_17_512_aus_1_v1",
+      "route_type": "bus",
+      "route_label": "512 \u2014 East Coburg - Strathmore Station"
+    },
+    {
+      "route_external_id": "vic_gtfs_4_1_19_696_aus_1",
+      "geometry_ref": "geom_vic_gtfs_4_1_19_696_aus_1_v1",
+      "route_type": "bus",
+      "route_label": "696 \u2014 Olinda - Monbulk"
+    },
+    {
+      "route_external_id": "vic_gtfs_4_1_19_757_aus_1",
+      "geometry_ref": "geom_vic_gtfs_4_1_19_757_aus_1_v1",
+      "route_type": "bus",
+      "route_label": "757 \u2014 Scoresby - Knox City SC"
+    },
+    {
+      "route_external_id": "vic_gtfs_4_1_19_758_aus_1",
+      "geometry_ref": "geom_vic_gtfs_4_1_19_758_aus_1_v1",
+      "route_type": "bus",
+      "route_label": "758 \u2014 Knoxfield - Knox City SC"
+    },
+    {
+      "route_external_id": "vic_gtfs_4_1_20_693_aus_1",
+      "geometry_ref": "geom_vic_gtfs_4_1_20_693_aus_1_v1",
+      "route_type": "bus",
+      "route_label": "693 \u2014 Belgrave - Oakleigh"
+    },
+    {
+      "route_external_id": "vic_gtfs_4_1_20_737_aus_1",
+      "geometry_ref": "geom_vic_gtfs_4_1_20_737_aus_1_v1",
+      "route_type": "bus",
+      "route_label": "737 \u2014 Monash University - Croydon"
+    },
+    {
+      "route_external_id": "vic_gtfs_4_1_22_679_aus_1",
+      "geometry_ref": "geom_vic_gtfs_4_1_22_679_aus_1_v1",
+      "route_type": "bus",
+      "route_label": "679 \u2014 Chirnside Park SC - Ringwood"
+    },
+    {
+      "route_external_id": "vic_gtfs_4_1_22_753_aus_1",
+      "geometry_ref": "geom_vic_gtfs_4_1_22_753_aus_1_v1",
+      "route_type": "bus",
+      "route_label": "753 \u2014 Bayswater - Glen Waverley"
+    },
+    {
+      "route_external_id": "vic_gtfs_4_1_29_201_aus_1",
+      "geometry_ref": "geom_vic_gtfs_4_1_29_201_aus_1_v1",
+      "route_type": "bus",
+      "route_label": "201 \u2014 Box Hill Station - Deakin University"
+    },
+    {
+      "route_external_id": "vic_gtfs_4_1_32_246_aus_1",
+      "geometry_ref": "geom_vic_gtfs_4_1_32_246_aus_1_v1",
+      "route_type": "bus",
+      "route_label": "246 \u2014 Elsternwick - Clifton Hill"
+    },
+    {
+      "route_external_id": "vic_gtfs_4_1_41_733_aus_1",
+      "geometry_ref": "geom_vic_gtfs_4_1_41_733_aus_1_v1",
+      "route_type": "bus",
+      "route_label": "733 \u2014 Box Hill - Oakleigh"
+    },
+    {
+      "route_external_id": "vic_gtfs_4_1_53_457_aus_1",
+      "geometry_ref": "geom_vic_gtfs_4_1_53_457_aus_1_v1",
+      "route_type": "bus",
+      "route_label": "457 \u2014 Melton - Melton Station"
+    },
+    {
+      "route_external_id": "vic_gtfs_4_1_58_G11_aus_1",
+      "geometry_ref": "geom_vic_gtfs_4_1_58_G11_aus_1_v1",
+      "route_type": "bus",
+      "route_label": "11 \u2014 Lara East - Lara Station"
+    }
+  ],
+  "data_root": "/scratch/s224714149/sidework/urban_shield/transport_gtfs",
+  "scratch_geojson": "/scratch/s224714149/sidework/urban_shield/transport_gtfs/transport_route_geometries_vic.geojson",
+  "scratch_index": "/scratch/s224714149/sidework/urban_shield/transport_gtfs/transport_route_geometry_index_vic.json",
+  "repo_geojson": null,
+  "repo_geojson_note": "GeoJSON too large for repo copy (99004567 bytes > 15728640). Use scratch file: /scratch/s224714149/sidework/urban_shield/transport_gtfs/transport_route_geometries_vic.geojson"
+}
