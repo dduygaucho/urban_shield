@@ -40,3 +40,5 @@ scripts/ingest/transport_routes_vic_normalized.meta.json
 scripts/ingest/transport_route_geometries_vic.geojson
 scripts/ingest/transport_route_geometries_vic.meta.json
 scripts/ingest/transport_route_geometry_index_vic.json
+
+apps/web/lib/data
