@@ -7,6 +7,15 @@ Two free hosts: **API (Render)** + **web (Vercel)**. Repository: **`deploy`** br
 - [Mapbox](https://www.mapbox.com/) account and a **public** token (`pk.…`).
 - Large **VIC route GeoJSON** is tracked with **Git LFS** ([`.gitattributes`](../.gitattributes)). Clone and CI must fetch LFS objects (`git lfs pull`).
 
+### Vercel: one app vs “Services” preset
+
+The dashboard may auto-detect **two** services (`apps/web` + `services/api`) and show **“vercel.json required”**. Two valid approaches:
+
+| Approach | What to do |
+|----------|------------|
+| **A. Next on Vercel + API on Render** (sections 1–2 below) | In Vercel, set **Root Directory** to **`apps/web`** only (or pick the **Next.js** preset so only one service deploys). **Do not** require root multi-service config. Use **`NEXT_PUBLIC_API_BASE_URL`** = your Render API URL. |
+| **B. Vercel “Services” (experimental)** | Keep **Root Directory** `./` and commit **[`vercel.json`](../vercel.json)** at the repo root (`experimentalServices` for `web` + `api`). Set **`NEXT_PUBLIC_API_BASE_URL`** to `https://<your-project>.vercel.app/_/api` (matches the **`routePrefix`**; no trailing slash). Browser and API share the same origin, so **CORS** is usually simple. Prefer **A** if this preset fails to build (experimental). |
+
 ## 1. API on Render
 
 1. [Render](https://render.com) → **New** → **Blueprint** → connect `dduygaucho/urban_shield`.
@@ -21,7 +30,7 @@ Two free hosts: **API (Render)** + **web (Vercel)**. Repository: **`deploy`** br
 ## 2. Web on Vercel
 
 1. [Vercel](https://vercel.com) → **Add New** → **Project** → import the same GitHub repo.
-2. **Root Directory:** `apps/web`.
+2. **Root Directory:** **`apps/web`** for approach **A** above; **`./`** if you use root **`vercel.json`** Services preset (approach **B**).
 3. **Production Branch:** `deploy` (Project → Settings → Git).
 4. **Environment variables** (Production):
 
