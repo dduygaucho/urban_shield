@@ -47,9 +47,9 @@ import type { RouteOption, RouteTravelMode } from "@/lib/routing/contracts";
 import { enrichAndRankRoutes } from "@/lib/safety/scoreRoute";
 
 /** Agent-F normalized route list (metadata only). */
-import vicRoutesNormalized from "../../../../scripts/ingest/transport_routes_vic_normalized.json";
+import vicRoutesNormalized from "@/lib/data/transport_routes_vic_normalized.json";
 /** Agent-F join index: by_geometry_ref, by_route_external_id. */
-import vicGeometryIndex from "../../../../scripts/ingest/transport_route_geometry_index_vic.json";
+import vicGeometryIndex from "@/lib/data/transport_route_geometry_index_vic.json";
 
 function defaultCenterFromEnv(): [number, number] {
   const v = process.env.NEXT_PUBLIC_MAP_DEFAULT?.toLowerCase();
