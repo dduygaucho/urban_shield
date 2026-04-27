@@ -262,6 +262,13 @@ export function RoutePlanningPanel(props: Props) {
 
   const compactSummary = `${mode === "walking" ? "Walk" : "Public transport"} · ${start ? "A" : "—"} → ${end ? "B" : "—"} · ${options.length} option${options.length === 1 ? "" : "s"}`;
   const isBottomDock = dock === "bottom";
+  /** Bottom sheet is short (~40dvh); bias even more vertical space to route results */
+  const inputsScrollClass = isBottomDock
+    ? "max-h-[min(240px,30vh)] flex-[0_1_30%]"
+    : "max-h-[min(300px,38vh)] flex-[0_1_34%]";
+  const resultsScrollClass = isBottomDock
+    ? "flex-[1_1_70%] min-h-[min(200px,34svh)]"
+    : "flex-[1_1_66%] min-h-[min(240px,42svh)]";
 
   /** Collapsed strip: stays above PrimaryActionDock (bottom) or flush to side docks. */
   const collapsedAsideClassName = isBottomDock
@@ -313,7 +320,7 @@ export function RoutePlanningPanel(props: Props) {
     : {
         top: "max(6rem, calc(env(safe-area-inset-top, 0px) + 4.5rem))",
         maxHeight:
-          "min(78vh, calc(100dvh - max(6rem, calc(env(safe-area-inset-top, 0px) + 4.5rem)) - max(0.75rem, env(safe-area-inset-bottom, 0px)) - 5rem))",
+          "min(92vh, calc(100dvh - max(6rem, calc(env(safe-area-inset-top, 0px) + 4.5rem)) - max(0.75rem, env(safe-area-inset-bottom, 0px)) - 4.25rem))",
       };
 
   return (
@@ -370,9 +377,12 @@ export function RoutePlanningPanel(props: Props) {
 
         {!compact && (
           <>
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-3 sm:px-4">
-              <div className="shrink-0 pt-3">
-                <section className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="flex min-h-0 flex-1 flex-col gap-0 overflow-hidden px-3 sm:px-4">
+              {/* Capped + scrollable so results area keeps ~⅔ of the panel height */}
+              <div
+                className={`min-h-0 overflow-y-auto overscroll-y-contain pt-3 ${inputsScrollClass}`}
+              >
+                <section className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 sm:p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Start</p>
                     <span
@@ -401,7 +411,7 @@ export function RoutePlanningPanel(props: Props) {
                   </div>
                 </section>
 
-                <section className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <section className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5 sm:p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Destination</p>
                     <span
@@ -432,7 +442,7 @@ export function RoutePlanningPanel(props: Props) {
                   type="button"
                   disabled={!start || !end || loading}
                   onClick={onFindRoutes}
-                  className="mt-3 w-full rounded-xl bg-slate-900 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  className="mt-2.5 w-full rounded-xl bg-slate-900 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {loading ? "Finding routes..." : "Find safer routes"}
                 </button>
@@ -441,9 +451,10 @@ export function RoutePlanningPanel(props: Props) {
               <div
                 ref={routeOptionsScrollRef}
                 onScroll={onRouteOptionsScroll}
-                className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-y-contain pb-2"
+                className={`mt-2 overflow-y-auto overscroll-y-contain pb-2 ${resultsScrollClass}`}
               >
                 <section className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Suggested routes</p>
                   {options.length === 0 ? (
                     <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
                       No route options yet. Pick start and destination, then search.
