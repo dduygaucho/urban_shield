@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, Mapping
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
@@ -18,6 +18,9 @@ router = APIRouter(prefix="/incidents", tags=["incidents"])
 
 IncidentType = Literal["crime", "harassment", "intoxication", "suspicious", "violence"]
 DurationClass = Literal["short_term", "long_term"]
+# Transport-linked incidents only: matches GTFS-normalized route modes (VIC pipeline).
+TransportRouteType = Literal["bus", "train", "tram"]
+_TRANS_MODES: frozenset[str] = frozenset({"bus", "train", "tram"})
 
 DEFAULT_SOURCE = "user_report"
 DEFAULT_DURATION_CLASS: DurationClass = "short_term"
@@ -74,6 +77,11 @@ LEGACY_TO_CANONICAL_COLUMNS = {
     "verification_reason": ("TEXT", "NULL"),
     "evidence_count": ("INTEGER", "1"),
     "evidence_sources": ("TEXT", "NULL"),
+    # Optional transport metadata (nullable for legacy point-only rows).
+    "route_type": ("VARCHAR(64)", "NULL"),
+    "route_external_id": ("VARCHAR(128)", "NULL"),
+    "route_label": ("VARCHAR(256)", "NULL"),
+    "geometry_ref": ("VARCHAR(256)", "NULL"),
 }
 
 
@@ -89,6 +97,23 @@ class IncidentCreate(BaseModel):
     description: str | None = None
     lat: float
     lng: float
+
+    # Optional transport route metadata (additive; point reports omit all of these).
+    # route_type: only bus | train | tram when present; omitted for point-only reports.
+    route_type: TransportRouteType | None = None
+    route_external_id: str | None = None
+    route_label: str | None = None
+    geometry_ref: str | None = None
+
+    @field_validator("route_type", mode="before")
+    @classmethod
+    def _normalize_create_route_type(cls, v: Any) -> str | None:
+        if v is None or v == "":
+            return None
+        s = str(v).strip().lower()
+        if s not in _TRANS_MODES:
+            raise ValueError("route_type must be one of: bus, train, tram")
+        return s
 
     @model_validator(mode="after")
     def validate_incident_type(self) -> "IncidentCreate":
@@ -120,6 +145,22 @@ class IncidentOut(BaseModel):
     lat: float
     lng: float
     created_at: datetime
+
+    route_type: TransportRouteType | None = None
+    route_external_id: str | None = None
+    route_label: str | None = None
+    geometry_ref: str | None = None
+
+    @field_validator("route_type", mode="before")
+    @classmethod
+    def _lenient_out_route_type(cls, v: Any) -> str | None:
+        """Legacy DB may contain unexpected strings; do not break GET for bad rows."""
+        if v is None or v == "":
+            return None
+        s = str(v).strip().lower()
+        if s in _TRANS_MODES:
+            return s
+        return None
 
     model_config = {"from_attributes": True}
 
@@ -166,6 +207,25 @@ def _first_present(payload: Mapping[str, Any], *keys: str) -> Any:
     return None
 
 
+def _optional_str(payload: Mapping[str, Any], *keys: str) -> str | None:
+    value = _first_present(payload, *keys)
+    if value is None:
+        return None
+    s = str(value).strip()
+    return s or None
+
+
+def _optional_transport_route_type(payload: Mapping[str, Any]) -> TransportRouteType | None:
+    """Parse optional route_type; reject invalid values (additive: omitted/empty = None)."""
+    s = _optional_str(payload, "route_type")
+    if s is None:
+        return None
+    key = s.lower()
+    if key not in _TRANS_MODES:
+        raise ValueError("route_type must be one of: bus, train, tram")
+    return key  # type: ignore[return-value]
+
+
 def normalize_incident_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     """Normalize connector/API input into the canonical incident shape."""
     description = str(_first_present(payload, "description", "text", "title", "summary") or "").strip()
@@ -199,6 +259,10 @@ def normalize_incident_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
         "lng": float(lng),
         "duration_class": duration_class,
         "confidence": confidence_value,
+        "route_type": _optional_transport_route_type(payload),
+        "route_external_id": _optional_str(payload, "route_external_id"),
+        "route_label": _optional_str(payload, "route_label"),
+        "geometry_ref": _optional_str(payload, "geometry_ref"),
     }
     validate_canonical_incident(canonical)
     return canonical
@@ -262,6 +326,10 @@ def create_incident(payload: IncidentCreate, db: Session = Depends(get_db)):
         lat=canonical["lat"],
         lng=canonical["lng"],
         created_at=canonical["timestamp"],
+        route_type=canonical.get("route_type"),
+        route_external_id=canonical.get("route_external_id"),
+        route_label=canonical.get("route_label"),
+        geometry_ref=canonical.get("geometry_ref"),
     )
     db.add(row)
     db.commit()

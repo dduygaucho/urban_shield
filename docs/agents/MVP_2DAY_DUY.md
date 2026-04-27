@@ -38,6 +38,48 @@ You may modify only:
 
 Do not modify routing/scoring modules.
 
+## Transport GTFS acquisition (Agent-F) — scratch + runbook
+
+**Large data (GTFS zip) must not live in the repo.** Default install directory on shared compute:
+
+```text
+/scratch/s224714149/sidework/urban_shield/transport_gtfs/
+```
+
+By default scripts use `TRANSPORT_DATA_ROOT=/scratch/s224714149/sidework` and write under `urban_shield/transport_gtfs`. Override with:
+
+- `TRANSPORT_DATA_ROOT` (preferred root override)
+- `VIC_GTFS_DATA_DIR` (explicit full data directory)
+
+One-time directory create:
+
+```bash
+mkdir -p /scratch/s224714149/sidework/urban_shield/transport_gtfs
+```
+
+**What collaborators download:** the official Victoria **GTFS Schedule** zip (same URL as `VIC_GTFS_SCHEDULE_URL` default in code). Full constraints, licensing, manual download path, and artifact schema: [scripts/ingest/README_transport_gtfs_vic.md](../../scripts/ingest/README_transport_gtfs_vic.md).
+
+**Commands (repo root):**
+
+```bash
+# Recommended: fully automated (download + unzip + normalize + deterministic fallback)
+PYTHONPATH=services/api python scripts/ingest/run_transport_ingest_vic.py
+
+# Legacy split flow:
+PYTHONPATH=services/api python scripts/ingest/fetch_transport_gtfs_vic.py --extract
+PYTHONPATH=services/api python scripts/ingest/normalize_transport_routes.py --with-fallback
+```
+
+**Outputs (local; normalized JSON is gitignored):**
+
+- `scripts/ingest/transport_routes_vic_normalized.json` — `routes[]` with `route_type` (`bus`|`train`|`tram`), `route_external_id`, `route_label`, `geometry_ref`
+- `scripts/ingest/transport_routes_vic_normalized.meta.json` — `fallback_used`, checksum, counts
+- Scratch: `gtfs_schedule.zip`, `gtfs_fetch.meta.json`
+
+**Optional API wiring:** set `ENABLE_TRANSPORT_INGEST_ON_STARTUP=true` to run `fetch_transport_gtfs_vic.py --normalize --with-fallback` once in a background thread on API startup (see `services/api/main.py`).
+
+**Handoff Agent-E:** consume `transport_routes_vic_normalized.json` the same way as the static subset; join keys unchanged. **Handoff Agent-A (Khoa):** tighten `route_type` in shared TS to `bus|train|tram` — ingestion emits only those values; `libs/schemas/incident.ts` still types it loosely today.
+
 Backup relationship:
 - Primary owner: Duy
 - Backup owner: Khoa (can take over any `DUY-*` task when needed)

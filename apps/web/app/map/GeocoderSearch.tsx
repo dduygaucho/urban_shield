@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import mapboxgl from "mapbox-gl";
 import MapboxGeocoder from "@mapbox/mapbox-gl-geocoder";
 import "@mapbox/mapbox-gl-geocoder/dist/mapbox-gl-geocoder.css";
@@ -9,11 +9,21 @@ type Props = {
   accessToken: string;
   active: boolean;
   onPick: (lng: number, lat: number) => void;
+  /** Bias ranking toward this point (Mapbox expects `{ longitude, latitude }`). */
+  proximity?: { longitude: number; latitude: number };
 };
 
-export function GeocoderSearch({ accessToken, active, onPick }: Props) {
+export function GeocoderSearch({ accessToken, active, onPick, proximity }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const geocoderRef = useRef<InstanceType<typeof MapboxGeocoder> | null>(null);
+
+  const proximityKey = useMemo(
+    () =>
+      proximity == null
+        ? ""
+        : `${proximity.longitude.toFixed(3)},${proximity.latitude.toFixed(3)}`,
+    [proximity],
+  );
 
   useEffect(() => {
     if (!active || !containerRef.current) return;
@@ -21,14 +31,21 @@ export function GeocoderSearch({ accessToken, active, onPick }: Props) {
     const el = containerRef.current;
     el.innerHTML = "";
 
+    /* MapboxGeocoder supports these fields at runtime; bundled types lag the public API. */
     const geocoder = new MapboxGeocoder({
       accessToken,
       mapboxgl: mapboxgl as never,
       marker: false,
-      placeholder: "Station, street, landmark…",
+      placeholder: "Hospital, station, suburb, address…",
       countries: "au",
-      bbox: [143.35, -38.72, 146.05, -37.35] as [number, number, number, number],
-    });
+      limit: 10,
+      minLength: 2,
+      language: "en",
+      fuzzyMatch: true,
+      autocomplete: true,
+      trackProximity: false,
+      ...(proximity ? { proximity } : {}),
+    } as ConstructorParameters<typeof MapboxGeocoder>[0]);
 
     geocoder.addTo(el);
     geocoder.on("result", (e: { result: { center: [number, number] } }) => {
@@ -47,7 +64,7 @@ export function GeocoderSearch({ accessToken, active, onPick }: Props) {
       el.innerHTML = "";
       geocoderRef.current = null;
     };
-  }, [active, accessToken, onPick]);
+  }, [active, accessToken, onPick, proximityKey]);
 
   if (!active) return null;
 

@@ -1,6 +1,14 @@
 /**
  * Frontend ↔ backend integration (Person 4).
  * Uses NEXT_PUBLIC_API_BASE_URL (see apps/web/.env.example).
+ *
+ * Backward compatibility:
+ * - `createIncident` accepts the full `IncidentCreatePayload` shape. Location-only reports
+ *   need only `lat`, `lng`, plus `category` and/or `description` (and optional `type`/`timestamp`/`duration_class`/`confidence`).
+ * - Transport-augmented reports add optional fields only (exact keys): `route_type`, `route_external_id`,
+ *   `route_label`, `geometry_ref`. Omitted keys are not sent by callers that only spread defined fields;
+ *   JSON serialization drops `undefined` values.
+ * - `getIncidents` returns `IncidentRecord[]`; optional transport keys on rows are ignored by older UI code.
  */
 import type { IncidentCreatePayload, IncidentRecord } from "@schemas/incident";
 
@@ -12,6 +20,7 @@ const base = () => {
   return b;
 };
 
+/** POST /incidents — payload must keep canonical anchors `lat` and `lng`. */
 export async function createIncident(payload: IncidentCreatePayload): Promise<IncidentRecord> {
   const res = await fetch(`${base()}/incidents`, {
     method: "POST",

@@ -1,0 +1,97 @@
+{
+  "$schema_comment": "Static prototype subset only. Not authoritative PTV/GTFS data.",
+  "version": "1",
+  "region": "Victoria_Australia_Melbourne_metro",
+  "routes": [
+    {
+      "route_type": "tram",
+      "route_external_id": "vic_tram_86",
+      "route_label": "Tram 86: Bundoora RMIT – Waterfront City Docklands",
+      "geometry_ref": "geom_vic_tram_86_v1"
+    },
+    {
+      "route_type": "tram",
+      "route_external_id": "vic_tram_96",
+      "route_label": "Tram 96: East Brunswick – St Kilda Beach",
+      "geometry_ref": "geom_vic_tram_96_v1"
+    },
+    {
+      "route_type": "tram",
+      "route_external_id": "vic_tram_11",
+      "route_label": "Tram 11: West Preston – Victoria Harbour Docklands",
+      "geometry_ref": "geom_vic_tram_11_v1"
+    },
+    {
+      "route_type": "tram",
+      "route_external_id": "vic_tram_19",
+      "route_label": "Tram 19: North Coburg – Flinders Street Station",
+      "geometry_ref": "geom_vic_tram_19_v1"
+    },
+    {
+      "route_type": "tram",
+      "route_external_id": "vic_tram_75",
+      "route_label": "Tram 75: Etihad Stadium Docklands – Vermont South",
+      "geometry_ref": "geom_vic_tram_75_v1"
+    },
+    {
+      "route_type": "train",
+      "route_external_id": "vic_train_belgrave",
+      "route_label": "Belgrave line (City Loop – Belgrave)",
+      "geometry_ref": "geom_vic_train_belgrave_v1"
+    },
+    {
+      "route_type": "train",
+      "route_external_id": "vic_train_frankston",
+      "route_label": "Frankston line (Flinders Street – Frankston)",
+      "geometry_ref": "geom_vic_train_frankston_v1"
+    },
+    {
+      "route_type": "train",
+      "route_external_id": "vic_train_upfield",
+      "route_label": "Upfield line (Flinders Street – Upfield)",
+      "geometry_ref": "geom_vic_train_upfield_v1"
+    },
+    {
+      "route_type": "train",
+      "route_external_id": "vic_train_craigieburn",
+      "route_label": "Craigieburn line (Flinders Street – Craigieburn)",
+      "geometry_ref": "geom_vic_train_craigieburn_v1"
+    },
+    {
+      "route_type": "train",
+      "route_external_id": "vic_train_werribee",
+      "route_label": "Werribee line (Flinders Street – Werribee)",
+      "geometry_ref": "geom_vic_train_werribee_v1"
+    },
+    {
+      "route_type": "bus",
+      "route_external_id": "vic_bus_901",
+      "route_label": "SmartBus 901: Frankston – Melbourne Airport",
+      "geometry_ref": "geom_vic_bus_901_v1"
+    },
+    {
+      "route_type": "bus",
+      "route_external_id": "vic_bus_246",
+      "route_label": "Bus 246: Elsternwick – Sandringham",
+      "geometry_ref": "geom_vic_bus_246_v1"
+    },
+    {
+      "route_type": "bus",
+      "route_external_id": "vic_bus_250",
+      "route_label": "Bus 250: La Trobe University – Melbourne Central",
+      "geometry_ref": "geom_vic_bus_250_v1"
+    },
+    {
+      "route_type": "bus",
+      "route_external_id": "vic_bus_907",
+      "route_label": "SmartBus 907: City – Mitcham",
+      "geometry_ref": "geom_vic_bus_907_v1"
+    },
+    {
+      "route_type": "bus",
+      "route_external_id": "vic_bus_601",
+      "route_label": "Bus 601: Huntingdale Station – Monash University Clayton",
+      "geometry_ref": "geom_vic_bus_601_v1"
+    }
+  ]
+}
